@@ -13,6 +13,7 @@ Makefile
 Makefile.in
 
 compile
+config.cache
 config.guess
 config.sub
 depcomp
