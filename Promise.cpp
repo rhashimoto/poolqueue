@@ -122,7 +122,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          std::lock_guard<std::mutex> lock(mutex_);
          downstream_.push_back(next);
          if (value_.type() != typeid(Unset))
-            targets.swap(downstream_);;
+            targets.swap(downstream_);
       }
 
       if (!targets.empty())

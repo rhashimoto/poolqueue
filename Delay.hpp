@@ -22,10 +22,19 @@ limitations under the License.
 
 namespace poolqueue {
 
+   // Enable timed callbacks.
+   //
+   // This class contains static member functions to create and cancel
+   // asynchronous one-shot delays using Promises.
    class Delay {
    public:
-      // This function returns a Promise that will be resolved
-      // after a minimum duration.
+      // Instantiate a delay.
+      // @duration Any std::chrono::duration, e.g. std::chrono::hours(2).
+      //
+      // This static function returns a Promise that will be resolved
+      // after at least the duration argument.
+      //
+      // @return Promise resolved at expiration or rejected if cancelled.
       template<typename T>
       static Promise create(const T& duration) {
          Promise p;
@@ -33,9 +42,13 @@ namespace poolqueue {
          return p;
       }
 
+      // Cancel a delay.
+      // @p Promise previously returned by Delay::create().
+      // @e Exception to reject the Promise.
+      //
       // This function cancels the delayed Promise returned by
-      // create(), returning true if successful. The Promise
-      // will be rejected with the exception_ptr argument.
+      // create(), returning true if successful. The Promise will be
+      // rejected with the exception_ptr argument.
       static bool cancel(const Promise& p, const std::exception_ptr& e = std::exception_ptr());
          
    private:

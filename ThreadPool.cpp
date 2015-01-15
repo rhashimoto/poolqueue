@@ -318,6 +318,8 @@ poolqueue::ThreadPool::threadId() {
 
 void
 poolqueue::ThreadPool::setThreadCount(int n) {
+   if (n <= 0)
+      throw std::invalid_argument("thread count must be > 0");
    Pimpl& pimpl = Pimpl::singleton();
    pimpl.setThreadCount(static_cast<size_t>(n));
 }

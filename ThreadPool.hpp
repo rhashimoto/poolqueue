@@ -23,18 +23,28 @@ limitations under the License.
 
 namespace poolqueue {
 
+   // Thread pool using Promises.
+   //
+   // This class contains static member functions to access and
+   // control a basic thread pool built using Promises.
    class ThreadPool {
    public:
-      // Execute a function asynchronously. A Promise is returned
-      // that either resolves with the value returned by the
-      // function or rejects with the exception thrown by the
-      // function.
+      // Post (enqueue) a job.
+      // @f Function or functor to run.
       //
-      // Note that calling .then()/.except() on the returned
-      // Promise will not necessary continue on a ThreadPool
-      // thread. If the posted function happens to be executed
-      // before .then()/.except(), the continuations will execute
+      // This static method enqueues a function to execute
+      // asynchronously. A Promise is returned that either resolves
+      // with the value returned by the function or rejects with the
+      // exception thrown by the function.
+      //
+      // Note that calling .then()/.except() on the returned Promise
+      // will not necessary continue on a ThreadPool thread. If the
+      // posted function happens to be executed before
+      // .then()/.except(), the continuations will execute
       // synchronously.
+      //
+      // @return Promise that resolves or rejects with the outcome
+      //         of the function argument.
       template<typename F>
       static Promise post(F&& f) {
          Promise p;
@@ -43,8 +53,14 @@ namespace poolqueue {
          return then;
       }
 
+      // Ensure that a job runs in the thread pool
+      // @f Function or functor to run.
+      //
       // Execute a function synchronously if currently running in a
       // ThreadPool thread, otherwise, post it.
+      //
+      // @return Promise that resolves or rejects with the outcome
+      //         of the function argument.
       template<typename F>
       static Promise dispatch(F&& f) {
          if (threadId() >= 0)
@@ -53,6 +69,9 @@ namespace poolqueue {
             return post(std::forward<F>(f));
       }
 
+      // Wrap a function.
+      // @f Function or functor to wrap.
+      //
       // Given an input function, return a function that runs the
       // input function in a ThreadPool thread.
       template<typename F>
@@ -62,25 +81,39 @@ namespace poolqueue {
          };
       }
 
+      // Get thread id.
+      //
       // If the current context is a ThreadPool thread, then return
       // its 0-based index, otherwise -1.
       static int threadId();
 
+      // Get number of threads in the pool.
+      //
+      // @return Number of threads.
+      static int getThreadCount();
+
+      // Set number of threads in the pool.
+      //
       // The number of threads can be dynamically adjusted. By
       // default it is the number of hardware threads determined by
       // std::thread::hardware_concurrency(). setThreadCount() must
       // not be called concurrently with any other ThreadPool
       // function.
       static void setThreadCount(int n);
-      static int getThreadCount();
 
+      // Synchronize threads.
+      //
       // Ensure that any function scheduled before synchronize()
       // completes before any function scheduled afterwards
       // starts. wait() can be called on the returned future to
       // block until the queue is flushed, but only if not on a
       // ThreadPool thread (otherwise deadlock will occur).
+      //
+      // @return Future whose result is set when the queue is empty.
       static std::shared_future<void> synchronize();
 
+      // Serialized execution.
+      //
       // Functions executed via a Strand instance are guaranteed to
       // run in the order they were posted without overlapping.
       class Strand {
@@ -88,12 +121,22 @@ namespace poolqueue {
          Strand();
          Strand(const Strand&) = delete;
          Strand(Strand&& other) = default;
-            
+
+         // Destructor.
+         //
          // The destructor blocks until all queued functions have
          // been executed, so it must not be invoked on a ThreadPool
          // thread.
          ~Strand();
 
+         // Post (enqueue) a job.
+         // @f Function or functor to run.
+         //
+         // This methods works similarly to ThreadPool::post()
+         // except execution must obey the Strand guarantees.
+         //
+         // @return Promise that resolves or rejects with the outcome
+         //         of the function argument.
          template<typename F>
          Promise post(F&& f) {
             Promise p;
@@ -102,6 +145,14 @@ namespace poolqueue {
             return then;
          }
 
+         // Post (enqueue) a job.
+         // @f Function or functor to run.
+         //
+         // This methods works similarly to ThreadPool::dispatch()
+         // except execution must obey the Strand guarantees.
+         //
+         // @return Promise that resolves or rejects with the outcome
+         //         of the function argument.
          template<typename F>
          Promise dispatch(F&& f) {
             if (std::this_thread::get_id() == currentId())
@@ -110,6 +161,11 @@ namespace poolqueue {
                return post(std::forward<F>(f));
          }
 
+         // Wrap a function.
+         // @f Function or functor to wrap.
+         //
+         // Given an input function, return a function that runs the
+         // input function in the strand.
          template<typename F>
          std::function<Promise()> wrap(const F& f) {
             return [this, f]() {
@@ -117,11 +173,15 @@ namespace poolqueue {
             };
          }
 
+         // Synchronize threads.
+         //
          // Because a strand guarantees non-concurrency, it is
          // technically always synchronized. However, the returned
          // future provides a way to block until the strand is
          // flushed. Blocking on a ThreadPool thread is discouraged
          // as that may cause deadlock.
+         //
+         // @return Future whose result is set when the queue is empty.
          std::shared_future<void> synchronize();
             
          Strand& operator=(const Strand&) = delete;

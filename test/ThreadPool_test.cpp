@@ -11,21 +11,26 @@ using poolqueue::ThreadPool;
 BOOST_AUTO_TEST_CASE(basic) {
    BOOST_CHECK_EQUAL(ThreadPool::threadId(), -1);
 
+   int count = 0;
    std::mutex exclusive;
    ThreadPool::post([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         ++count;
       });
    ThreadPool::dispatch([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         ++count;
       });
    ThreadPool::wrap([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         ++count;
       })();
 
    ThreadPool::synchronize().wait();
+   BOOST_CHECK_EQUAL(count, 3);
 }
 
 BOOST_AUTO_TEST_CASE(promise) {
@@ -77,9 +82,10 @@ BOOST_AUTO_TEST_CASE(dispatch) {
 
 BOOST_AUTO_TEST_CASE(count) {
    const int nThreads = ThreadPool::getThreadCount();
-   ThreadPool::setThreadCount(0);
+   BOOST_CHECK_THROW(ThreadPool::setThreadCount(0), std::invalid_argument);
+   BOOST_CHECK_THROW(ThreadPool::setThreadCount(-1), std::invalid_argument);
 
-   for (int i = 0; i < 100; ++i) {
+   for (int i = 1; i < 100; ++i) {
       ThreadPool::setThreadCount(i);
       BOOST_CHECK_EQUAL(ThreadPool::getThreadCount(), i);
       
