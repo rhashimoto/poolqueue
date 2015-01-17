@@ -248,7 +248,7 @@ static void then_function() {
 BOOST_AUTO_TEST_CASE(basic_then) {
    Promise p;
    BOOST_CHECK(!p.settled());
-   BOOST_CHECK_THROW(p.type(), std::runtime_error);
+   BOOST_CHECK(p.type() == typeid(Promise));
    BOOST_CHECK_THROW(p.cast<int>(), std::runtime_error);
    
    p.resolve(42);
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(basic_then) {
          BOOST_CHECK(false);
       });
 
-   BOOST_CHECK_THROW(p.then([](float) {}), Promise::bad_cast);
+   BOOST_CHECK_THROW(p.then([](float) {}), std::invalid_argument);
    BOOST_CHECK_THROW(p.resolve(0), std::logic_error);
 }
 
@@ -299,7 +299,7 @@ static void except_function(const std::exception_ptr&) {
 BOOST_AUTO_TEST_CASE(basic_except) {
    Promise p;
    BOOST_CHECK(!p.settled());
-   BOOST_CHECK_THROW(p.type(), std::runtime_error);
+   BOOST_CHECK(p.type() == typeid(Promise));
    p.reject(std::make_exception_ptr(0));
    BOOST_CHECK(p.settled());
    BOOST_CHECK(p.type() == typeid(std::exception_ptr));
@@ -387,6 +387,7 @@ BOOST_AUTO_TEST_CASE(chain) {
       .except([&](const std::exception_ptr& e) {
             // Won't get here because exception was already delivered.
             BOOST_CHECK(false);
+            return 0;
          })
       .then([&](int i) {
             BOOST_CHECK_EQUAL(i, 2);

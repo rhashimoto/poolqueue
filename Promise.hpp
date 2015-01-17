@@ -137,14 +137,28 @@ namespace poolqueue {
          static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value,
                        "onReject callback must take a std::exception_ptr argument.");
 
+         constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
+         constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;
+         typedef typename detail::CallableTraits<Resolve>::ResultType ResolveResult;
+         typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
+         static_assert(isResolveNull || isRejectNull ||
+                       std::is_same<ResolveResult, RejectResult>::value,
+                       "onResolve and onReject return types must match");
+
          if (closed())
             throw std::logic_error("Promise is closed");
+
+         const std::type_info& uType = type();
+         if (!std::is_same<ResolveArgument, void>::value &&
+             uType != typeid(Promise) &&
+             uType != typeid(typename std::decay<ResolveArgument>::type))
+            throw std::invalid_argument("onResolve argument does not match Promise type");
          
-         auto onResolveWrapped = !std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value ?
+         auto onResolveWrapped = !isResolveNull ?
             detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
             static_cast<detail::CallbackWrapper *>(nullptr);
          
-         auto onRejectWrapped = !std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value ?
+         auto onRejectWrapped = !isRejectNull ?
             detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
             static_cast<detail::CallbackWrapper *>(nullptr);
 
@@ -181,12 +195,13 @@ namespace poolqueue {
       // @return true if closed.
       bool closed() const;
 
-      // Get settled Promise type.
+      // Get Promise type.
       //
-      // This method returns the type of the value on a resolved
-      // Promise, or typeid(std::exception_ptr) on a rejected
-      // Promise. An exception is thrown if the Promise is not
-      // settled.
+      // This method returns the type of the value on a Promise.  If
+      // this is a default constructed Promise then the type of the
+      // settled value is returned or typeid(Promise) if not yet
+      // settled. Otherwise the type of the callback return value
+      // is returned.
       //
       // @return Type object on the Promise.
       const std::type_info& type() const;

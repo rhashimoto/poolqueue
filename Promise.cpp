@@ -102,7 +102,13 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    const std::type_info& type() {
       std::lock_guard<std::mutex> lock(mutex_);
-      return value_.type();
+      if (onResolve_)
+         return onResolve_->resultType();
+      if (onReject_)
+         return onReject_->resultType();
+      if (value_.type() != typeid(Unset))
+         return value_.type();
+      return typeid(Promise);
    }
    
    // Attach a downstream promise.
@@ -246,10 +252,6 @@ poolqueue::Promise::closed() const {
 
 const std::type_info&
 poolqueue::Promise::type() const {
-   if (!settled())
-      throw std::runtime_error("Promise is not settled");
-   if (closed())
-      throw std::runtime_error("value has been moved");
    return pimpl->type();
 }
 

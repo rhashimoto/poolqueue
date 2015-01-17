@@ -262,6 +262,7 @@ namespace poolqueue {
       public:
          virtual ~CallbackWrapper() {}
 
+         virtual const std::type_info& resultType() const = 0;
          virtual bool hasRvalueArgument() const = 0;
          virtual bool hasExceptionPtrArgument() const = 0;
          virtual Any operator()(Any&&) const = 0;
@@ -274,6 +275,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(typename std::decay<R>::type);
+         }
+         
          bool hasRvalueArgument() const {
             return std::is_rvalue_reference<A>::value;
          }
@@ -297,6 +302,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(void);
+         }
+         
          bool hasRvalueArgument() const {
             return std::is_rvalue_reference<A>::value;
          }
@@ -321,6 +330,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(typename std::decay<R>::type);
+         }
+         
          bool hasRvalueArgument() const {
             return false;
          }
@@ -341,6 +354,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(void);
+         }
+         
          bool hasRvalueArgument() const {
             return false;
          }
@@ -362,6 +379,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(typename std::decay<R>::type);
+         }
+         
          bool hasRvalueArgument() const {
             return std::is_rvalue_reference<A>::value;
          }
@@ -382,6 +403,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& resultType() const {
+            return typeid(void);
+         }
+         
          bool hasRvalueArgument() const {
             return std::is_rvalue_reference<A>::value;
          }
