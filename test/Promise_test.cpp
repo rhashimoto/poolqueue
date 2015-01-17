@@ -250,6 +250,7 @@ BOOST_AUTO_TEST_CASE(basic_then) {
    BOOST_CHECK(!p.settled());
    BOOST_CHECK_THROW(p.type(), std::runtime_error);
    BOOST_CHECK_THROW(p.cast<int>(), std::runtime_error);
+   
    p.resolve(42);
    BOOST_CHECK(p.settled());
    BOOST_CHECK(p.type() == typeid(int));
@@ -472,12 +473,9 @@ BOOST_AUTO_TEST_CASE(rvalue) {
       });
    BOOST_CHECK(p.closed());
 
-   // No more calls to then() allowed.
+   // No more callbacks allowed.
    BOOST_CHECK_THROW(p.then([](const std::string&) {}), std::logic_error);
-
-   // But except() is still permitted.
-   p.except([](const std::exception_ptr& e) {
-      });
+   BOOST_CHECK_THROW(p.except([](const std::exception_ptr&) {}), std::logic_error);
 
    // Casting is invalid on a closed Promise.
    p.resolve(std::string("rvalue successfully moved"));

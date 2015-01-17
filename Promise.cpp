@@ -66,7 +66,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::atomic<bool> propagated_;
    std::atomic<bool> closed_;
    
-   std::unique_ptr<detail::CallbackWrapper> callback_;
+   std::unique_ptr<detail::CallbackWrapper> onResolve_;
+   std::unique_ptr<detail::CallbackWrapper> onReject_;
    
    Pimpl()
       : value_(Unset())
@@ -108,11 +109,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    void link(const std::shared_ptr<Pimpl>& next) {
       // A Promise is closed once an onResolve callback with an rvalue
       // reference argument has been added because that callback can
-      // steal (i.e. move) the value. Only onReject callbacks can be
-      // added to a closed Promise.
-      if (closed_ && !(next->callback_ && next->callback_->hasExceptionPtrArgument()))
-         throw std::logic_error("onResolve callback attached to closed Promise");
-      if (next->callback_ && next->callback_->hasRvalueArgument())
+      // steal (i.e. move) the value.
+      if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
          closed_ = true;
       
       next->upstream_ = shared_from_this();
@@ -149,31 +147,37 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    // Set promise value.
    void settle(Value&& value) {
-      // Pass value through callback if present (onResolve or onReject).
+      // Pass value through appropriate callback if present.
       Value cbValue{Unset()};
-      if (callback_) {
-         if ((!callback_->hasExceptionPtrArgument() && value.type() != typeid(std::exception_ptr)) ||
-             (callback_->hasExceptionPtrArgument() && value.type() == typeid(std::exception_ptr))) {
-            try {
-               cbValue = (*callback_)(std::move(value));
-            }
-            catch (const bad_cast& e) {
-               // The type contained in the Value does not match the
-               // type the onResolve callback accepts, so this is a
-               // user code error.
-               if (badCastHandler)
-                  badCastHandler(e);
-               
-               cbValue = std::current_exception();
-            }
-            catch (...) {
-               cbValue = std::current_exception();
-            }
+      if (onResolve_ && value.type() != typeid(std::exception_ptr)) {
+         try {
+            cbValue = (*onResolve_)(std::move(value));
          }
-         
-         // Discard callback so it cannot be used again.
-         callback_.reset();
+         catch (const bad_cast& e) {
+            // The type contained in the Value does not match the
+            // type the onResolve callback accepts, so this is a
+            // user code error.
+            if (badCastHandler)
+               badCastHandler(e);
+               
+            cbValue = std::current_exception();
+         }
+         catch (...) {
+            cbValue = std::current_exception();
+         }
       }
+      else if (onReject_ && value.type() == typeid(std::exception_ptr)) {
+         try {
+            cbValue = (*onReject_)(std::move(value));
+         }
+         catch (...) {
+            cbValue = std::current_exception();
+         }
+      }
+
+      // Discard callbacks so they cannot be used again.
+      onResolve_.reset();
+      onReject_.reset();
       
       if (cbValue.type() != typeid(Promise)) {
          Targets targets;
@@ -207,9 +211,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       }
    }
 
-   std::shared_ptr<Pimpl> attach(detail::CallbackWrapper *callback) {
+   std::shared_ptr<Pimpl> attach(detail::CallbackWrapper *onResolve, detail::CallbackWrapper *onReject) {
       auto result = std::make_shared<Pimpl>();
-      result->callback_.reset(callback);
+      result->onResolve_.reset(onResolve);
+      result->onReject_.reset(onReject);
       
       link(result);
       return result;;
@@ -270,8 +275,9 @@ poolqueue::Promise::settle(Value&& value) const {
 }
 
 Promise
-poolqueue::Promise::attach(detail::CallbackWrapper *callback) const {
-   return Promise(pimpl->attach(callback));
+poolqueue::Promise::attach(detail::CallbackWrapper *onResolve,
+                           detail::CallbackWrapper *onReject) const {
+   return Promise(pimpl->attach(onResolve, onReject));
 }
 
 const Promise::Value&

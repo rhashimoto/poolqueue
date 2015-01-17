@@ -108,8 +108,7 @@ namespace poolqueue {
       //            onResolve may take a single argument by value, const
       //            reference, or rvalue reference. In the case of an
       //            rvalue reference argument, the Promise will be closed
-      //            to any further then() method calls. onResolve may return
-      //            a value.
+      //            to additional callbacks. onResolve may return a value.
       // @onReject  Optional function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
       //            const std::exception_ptr& and may return a value. 
@@ -128,8 +127,6 @@ namespace poolqueue {
       // returned by then() will receive q's value or error (which may
       // not happen immediately).
       //
-      // Calling then() on a closed Promise will throw std::logic_error.
-      //
       // @return Promise to receive the result of a value/error and the
       //         matching callback.
       template<typename Resolve, typename Reject = std::function<void(const std::exception_ptr&)> >
@@ -141,20 +138,18 @@ namespace poolqueue {
          static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value,
                        "onReject callback must take a std::exception_ptr argument.");
 
-         if (detail::IsDefaultExceptionCallback<Reject>(onReject))
-            return attach(detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)));
+         if (closed())
+            throw std::logic_error("Promise is closed");
+         
+         auto onResolveWrapped =
+            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve));
+         
+         const bool hasOnReject = !detail::IsDefaultExceptionCallback<Reject>(onReject);
+         auto onRejectWrapped = hasOnReject ?
+            detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
+            static_cast<detail::CallbackWrapper *>(nullptr);
 
-         Promise p;
-         Promise pResolve = attach(detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)));
-         pResolve.attach(detail::makeCallbackWrapper([=](Value&& v) {
-                  p.resolve(std::move(v));
-               }));
-         Promise pReject = attach(detail::makeCallbackWrapper(std::forward<Reject>(onReject)));
-         pReject.attach(detail::makeCallbackWrapper([=](const std::exception_ptr& e) {
-                  p.reject(e);
-               }));
-               
-         return p;
+         return attach(onResolveWrapped, onRejectWrapped);
       }
          
       // Attach reject callback only.
@@ -169,7 +164,13 @@ namespace poolqueue {
          typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
          static_assert(std::is_same<RejectArgument, const std::exception_ptr&>::value,
                        "except callback must take a const std::exception_ptr& argument.");
-         return attach(detail::makeCallbackWrapper(std::forward<Reject>(onReject)));
+
+         if (closed())
+            throw std::logic_error("Promise is closed");
+         
+         auto onRejectWrapped =
+            detail::makeCallbackWrapper(std::forward<Reject>(onReject));
+         return attach(nullptr, onRejectWrapped);
       }
 
       // Get the settled state.
@@ -182,10 +183,10 @@ namespace poolqueue {
 
       // Get the closed state.
       //
-      // A Promise is closed when an onResolve callback that takes
-      // an rvalue reference argument has been attached with then().
-      // No additional calls to then() can be made on a closed
-      // Promise.
+      // A Promise is closed when an onResolve callback that takes an
+      // rvalue reference argument has been attached with then().  No
+      // additional callbacks can be added to a closed Promise (i.e.
+      // calls to then() or except() will throw an exception).
       //
       // @return true if closed.
       bool closed() const;
@@ -327,7 +328,7 @@ namespace poolqueue {
       Promise(std::shared_ptr<Pimpl>&&);
          
       void settle(Value&& result) const;
-      Promise attach(detail::CallbackWrapper *) const;
+      Promise attach(detail::CallbackWrapper *, detail::CallbackWrapper *) const;
       const Value& getValue() const;
 
       template<typename T>
