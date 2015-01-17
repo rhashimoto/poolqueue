@@ -127,9 +127,8 @@ namespace poolqueue {
       // returned by then() will receive q's value or error (which may
       // not happen immediately).
       //
-      // @return Promise to receive the result of a value/error and the
-      //         matching callback.
-      template<typename Resolve, typename Reject = std::function<void(const std::exception_ptr&)> >
+      // @return Promise to receive the eventual result.
+      template<typename Resolve, typename Reject = detail::NullReject >
       Promise then(Resolve&& onResolve, Reject&& onReject = Reject()) const {
          typedef typename detail::CallableTraits<Resolve>::ArgumentType ResolveArgument;
          static_assert(!std::is_same<typename std::decay<ResolveArgument>::type, std::exception_ptr>::value,
@@ -141,11 +140,11 @@ namespace poolqueue {
          if (closed())
             throw std::logic_error("Promise is closed");
          
-         auto onResolveWrapped =
-            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve));
+         auto onResolveWrapped = !std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value ?
+            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
+            static_cast<detail::CallbackWrapper *>(nullptr);
          
-         const bool hasOnReject = !detail::IsDefaultExceptionCallback<Reject>(onReject);
-         auto onRejectWrapped = hasOnReject ?
+         auto onRejectWrapped = !std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value ?
             detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
             static_cast<detail::CallbackWrapper *>(nullptr);
 
@@ -161,16 +160,7 @@ namespace poolqueue {
       // attaches a reject callback.
       template<typename Reject>
       Promise except(Reject&& onReject) const {
-         typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
-         static_assert(std::is_same<RejectArgument, const std::exception_ptr&>::value,
-                       "except callback must take a const std::exception_ptr& argument.");
-
-         if (closed())
-            throw std::logic_error("Promise is closed");
-         
-         auto onRejectWrapped =
-            detail::makeCallbackWrapper(std::forward<Reject>(onReject));
-         return attach(nullptr, onRejectWrapped);
+         return then(detail::NullResolve(), std::forward<Reject>(onReject));
       }
 
       // Get the settled state.

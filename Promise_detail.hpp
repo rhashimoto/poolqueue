@@ -420,18 +420,14 @@ namespace poolqueue {
          return new CallbackWrapperT<F, typename std::decay<R>::type, A, isValue>(std::forward<F>(f));
       }
 
-      // Helper for Promise::then() to deduce an elided onReject argument.
-      template<typename F>
-      struct IsDefaultExceptionCallback {
-         IsDefaultExceptionCallback(const F&) {}
-         operator bool() const { return false; }
+      struct NullResolve {
+         void operator()() const {
+         }
       };
 
-      template<>
-      struct IsDefaultExceptionCallback<std::function<void(const std::exception_ptr&)> > {
-         const std::function<void(const std::exception_ptr&)>& f_;
-         IsDefaultExceptionCallback(const std::function<void(const std::exception_ptr&)>& f) : f_(f) {}
-         operator bool() const { return !f_; }
+      struct NullReject {
+         void operator()(const std::exception_ptr&) const {
+         }
       };
 
    }
