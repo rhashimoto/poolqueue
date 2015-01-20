@@ -284,12 +284,12 @@ namespace poolqueue {
             auto rejected = std::make_shared<std::atomic<bool>>(false);
             for (auto i = bgn; i != end; ++i) {
                i->then([=]() {
-                     if (!--*count) {
+                     if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
                         p.resolve();
                      }
                   })
                   .except([=](const std::exception_ptr& e) {
-                        if (!rejected->exchange(true))
+                        if (!rejected->exchange(true, std::memory_order_relaxed))
                            p.reject(e);
                      });
             }

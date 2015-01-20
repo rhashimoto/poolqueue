@@ -59,8 +59,7 @@ namespace {
 struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::mutex mutex_;
    std::weak_ptr<Pimpl> upstream_;
-   typedef std::vector<std::shared_ptr<Pimpl> > Targets;
-   Targets downstream_;
+   std::vector<std::shared_ptr<Pimpl> > downstream_;
 
    Value value_;
    std::atomic<bool> propagated_;
@@ -79,7 +78,9 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    ~Pimpl() {
       // Handle undelivered exceptions.
-      if (!propagated_ && value_.type() == typeid(std::exception_ptr) && undeliveredExceptionHandler) {
+      if (!propagated_.load(std::memory_order_relaxed) &&
+          value_.type() == typeid(std::exception_ptr) &&
+          undeliveredExceptionHandler) {
          // Protect the exception handler from concurrent execution.
          static std::mutex m;
          std::lock_guard<std::mutex> lock(m);
@@ -88,7 +89,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    }
 
    bool settled() {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<decltype(mutex_)> lock(mutex_);
       if (upstream_.lock()) {
          // Still waiting on upstream, not settled.
          return false;
@@ -97,11 +98,11 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    }
 
    bool closed() {
-      return closed_;
+      return closed_.load(std::memory_order_relaxed);
    }
 
    const std::type_info& type() {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<decltype(mutex_)> lock(mutex_);
       if (onResolve_)
          return onResolve_->resultType();
       if (onReject_)
@@ -117,13 +118,13 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       // reference argument has been added because that callback can
       // steal (i.e. move) the value.
       if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
-         closed_ = true;
+         closed_.store(true, std::memory_order_relaxed);
       
       next->upstream_ = shared_from_this();
 
-      Targets targets;
+      decltype(downstream_) targets;
       {
-         std::lock_guard<std::mutex> lock(mutex_);
+         std::lock_guard<decltype(mutex_)> lock(mutex_);
          downstream_.push_back(next);
          if (value_.type() != typeid(Unset))
             targets.swap(downstream_);
@@ -134,7 +135,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    }
 
    // Push value downstream.
-   void propagate(const Targets& targets) {
+   void propagate(const decltype(downstream_)& targets) {
       assert(value_.type() != typeid(Unset));
       for (const auto& target : targets)
          target->settle(std::move(value_));
@@ -142,12 +143,12 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       // The propagated_ flag is set if the value is sent to any
       // downstream target. Once set, it should never be unset.
       assert(!(propagated_ && targets.empty()));
-      propagated_ = !targets.empty();;
+      propagated_.store(!targets.empty(), std::memory_order_relaxed);
 
       // Mark the value as invalid if it has been allowed to be
       // moved (it might not have actually been moved but we can't
       // tell).
-      if (closed_)
+      if (closed_.load(std::memory_order_relaxed))
          value_ = Moved();
    }
 
@@ -186,9 +187,9 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       onReject_.reset();
       
       if (cbValue.type() != typeid(Promise)) {
-         Targets targets;
+         decltype(downstream_) targets;
          {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::lock_guard<decltype(mutex_)> lock(mutex_);
             if (value_.type() != typeid(Unset))
                throw std::logic_error("Promise already settled");
 
