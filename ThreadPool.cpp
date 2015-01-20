@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <cassert>
+#include <deque>
 #include <map>
 #include <queue>
 #include <vector>
@@ -133,6 +134,7 @@ namespace {
    
    struct Pimpl {
       std::vector<std::thread> threads_;
+      std::deque<std::atomic<bool>> running_;
       std::map<std::thread::id, int> ids_;
       
       ConcurrentQueue<poolqueue::Promise> queue_;
@@ -149,49 +151,50 @@ namespace {
       }
 
       void setThreadCount(size_t n) {
-         // Wait until the queue is clear.
-         synchronize().wait();
-
          // Add threads.
-         {
-            std::unique_lock<std::mutex> lock(mutex_);
+         if (n > threads_.size()) {
+            synchronize().wait();
+
+            // Start new threads. std::deque<T>::emplace_back() does
+            // not invalidate existing element references.
+            std::lock_guard<std::mutex> lock(mutex_);
             for (size_t i = threads_.size(); i < n; ++i) {
+               running_.emplace_back(true);
                threads_.emplace_back([this, i]() {
-                     run(static_cast<int>(i));
+                     run(i);
                   });
+               ids_[threads_.back().get_id()] = static_cast<int>(i);
             }
          }
 
          // Remove threads.
-         std::vector<std::thread> remove(threads_.size() - n);
-         if (!remove.empty()) {
+         else if (n < threads_.size()) {
+            synchronize().wait();
+
             // Separate threads to remove.
+            std::vector<std::thread> remove(threads_.size() - n);
             std::unique_lock<std::mutex> lock(mutex_);
             std::move(threads_.begin() + n, threads_.end(), remove.begin());
             threads_.erase(threads_.begin() + n, threads_.end());
 
-            // Get every thread to test for deletion.
-            auto count = std::make_shared<std::atomic<size_t>>(threads_.size() + remove.size());
-            auto promise = std::make_shared<std::promise<void>>();
-            std::shared_future<void> future(promise->get_future());
-            for (size_t i = 0; i < threads_.size() + remove.size(); ++i) {
-               poolqueue::Promise f;
-               f.then([=]() {
-                     if (--*count == 0)
-                        promise->set_value();
-                     else
-                        future.wait();
-                  });
-               queue_.push(f);
+            // Signal threads.
+            for (size_t i = 0; i < remove.size(); ++i) {
+               ids_.erase(threads_[i].get_id());
+               running_[i] = false;
             }
             condition_.notify_all();
+            lock.unlock();
+            
+            // Wait for removed threads to exit.
+            for (auto& t : remove)
+               t.join();
+
+            running_.resize(n);
          }
-         
-         // Wait for removed threads to exit.
-         for (auto& t : remove) {
-            ids_.erase(t.get_id());
-            t.join();
-         }
+
+         assert(threads_.size() == n);
+         assert(running_.size() == n);
+         assert(std::count(running_.begin(), running_.end(), true) == n);
       }
 
       size_t getThreadCount() const {
@@ -220,14 +223,10 @@ namespace {
          }
       }
 
-      void run(int i) {
-         {
-            std::lock_guard<std::mutex> lock(mutex_);
-            ids_[std::this_thread::get_id()] = i;
-         }
-         
+      void run(size_t i) {
+         auto& running = running_[i];
          poolqueue::Promise f;
-         while (true) {
+         while (running) {
             // Attempt to run the next task from the queue.
             if (queue_.pop(f)) {
                f.resolve();
@@ -245,15 +244,10 @@ namespace {
                   f.resolve();
                }
 
-               // The queue is now known to be empty. If this thread
-               // is still part of the pool then wait.
-               else if (i < static_cast<int>(threads_.size())) {
+               // The queue is now known to be empty.
+               else if (running) {
                   condition_.wait(lock);
                }
-
-               // Otherwise the thread is slated for deletion.
-               else
-                  break;
             }
          }
       }
