@@ -240,6 +240,82 @@ BOOST_AUTO_TEST_CASE(value) {
    BOOST_CHECK(b.empty());
 }
 
+BOOST_AUTO_TEST_CASE(basic) {
+   {
+      Promise p;
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(p.type() == typeid(Promise));
+      BOOST_CHECK_THROW(p.cast<int>(), std::runtime_error);
+   
+      p.resolve(42);
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(p.type() == typeid(int));
+      BOOST_CHECK_EQUAL(p.cast<int>(), 42);
+      BOOST_CHECK_EQUAL(p.cast<const int&>(), 42);
+   }
+
+   Promise::ExceptionHandler originalHandler = Promise::setUndeliveredExceptionHandler([](const std::exception_ptr&) {});
+   {
+
+      Promise p;
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(p.type() == typeid(Promise));
+      p.reject(std::make_exception_ptr(0));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(p.type() == typeid(std::exception_ptr));
+
+   }
+   Promise::setUndeliveredExceptionHandler(originalHandler);
+   
+   {
+      bool complete = false;
+      Promise p(
+         [&](int value) {
+            BOOST_CHECK_EQUAL(value, 42);
+            complete = true;
+         });
+
+      BOOST_CHECK(!complete);
+
+      p.resolve(42);
+      BOOST_CHECK(complete);
+   }
+
+   {
+      bool complete = false;
+      Promise p(
+         [&](int value) {
+            BOOST_CHECK_EQUAL(value, 42);
+            complete = true;
+         },
+         [&](const std::exception_ptr& e) {
+            BOOST_CHECK(false);
+         });
+
+      BOOST_CHECK(!complete);
+
+      p.resolve(42);
+      BOOST_CHECK(complete);
+   }
+
+   {
+      bool complete = false;
+      Promise p(
+         [&](int value) {
+            BOOST_CHECK(false);
+         },
+         [&](const std::exception_ptr& e) {
+            BOOST_CHECK_THROW(std::rethrow_exception(e), std::runtime_error);
+            complete = true;
+         });
+
+      BOOST_CHECK(!complete);
+
+      p.reject(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK(complete);
+   }
+}
+
 static bool thenCalled = false;
 static void then_function() {
    thenCalled = true;
@@ -247,15 +323,7 @@ static void then_function() {
 
 BOOST_AUTO_TEST_CASE(basic_then) {
    Promise p;
-   BOOST_CHECK(!p.settled());
-   BOOST_CHECK(p.type() == typeid(Promise));
-   BOOST_CHECK_THROW(p.cast<int>(), std::runtime_error);
-   
    p.resolve(42);
-   BOOST_CHECK(p.settled());
-   BOOST_CHECK(p.type() == typeid(int));
-   BOOST_CHECK_EQUAL(p.cast<int>(), 42);
-   BOOST_CHECK_EQUAL(p.cast<const int&>(), 42);
    
    int coverage = 0;
    p.then([&](int) {
@@ -297,12 +365,8 @@ static void except_function(const std::exception_ptr&) {
 }
 
 BOOST_AUTO_TEST_CASE(basic_except) {
-   Promise p;
-   BOOST_CHECK(!p.settled());
-   BOOST_CHECK(p.type() == typeid(Promise));
-   p.reject(std::make_exception_ptr(0));
-   BOOST_CHECK(p.settled());
-   BOOST_CHECK(p.type() == typeid(std::exception_ptr));
+   Promise p([]() { throw 0; });
+   p.resolve();
    
    int coverage = 0;
    p.except([&](const std::exception_ptr&) {

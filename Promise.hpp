@@ -49,7 +49,7 @@ namespace poolqueue {
       // Construct a non-dependent Promise.
       //
       // This creates a new instance that is not attached to any other
-      // instance. A default constructed Promise can be settled by
+      // instance. A non-dependent Promise should be settled by
       // calling <resolve> or <reject>.
       Promise();
 
@@ -71,9 +71,44 @@ namespace poolqueue {
       // Move assignment.
       Promise& operator=(Promise&&) = default;
 
+      // Construct a non-dependent Promise with callbacks.
+      // @onResolve Function/functor to be called if the Promise is resolved.
+      //            onResolve may take a single argument by value, const
+      //            reference, or rvalue reference. In the case of an
+      //            rvalue reference argument, the Promise will be closed
+      //            to additional callbacks. onResolve may return a value.
+      // @onReject  Optional function/functor to be called if the Promise is
+      //            rejected. onReject may take a single argument of
+      //            const std::exception_ptr& and may return a value.
+      //
+      // This creates a new instance that is not attached to any other
+      // instance. A default constructed Promise should be settled by
+      // calling <resolve> or <reject>.
+      //
+      // When the instance is settled, the appropriate callback argument
+      // will be called.
+      template<typename Resolve, typename Reject = detail::NullReject,
+               typename = typename std::enable_if<!std::is_same<typename std::decay<Resolve>::type, Promise>::value>::type>
+      Promise(Resolve&& onResolve, Reject&& onReject = Reject())
+         : Promise(
+            !std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value ?
+            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
+            static_cast<detail::CallbackWrapper *>(nullptr),
+            !std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value ?            
+            detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
+            static_cast<detail::CallbackWrapper *>(nullptr)) {
+         constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
+         constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;
+         typedef typename detail::CallableTraits<Resolve>::ResultType ResolveResult;
+         typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
+         static_assert(isResolveNull || isRejectNull ||
+                       std::is_same<ResolveResult, RejectResult>::value,
+                       "onResolve and onReject return types must match");
+      }
+
       ~Promise() noexcept;
          
-      // Resolve a default constructed Promise with a value.
+      // Resolve a non-dependent Promise with a value.
       // @value Copyable or Movable value.
       //
       // @return *this to allow return Promise().resolve(value);
@@ -86,7 +121,7 @@ namespace poolqueue {
          return *this;
       }
 
-      // Resolve a default constructed Promise with no value.
+      // Resolve a non-dependent Promise with no value.
       //
       // @return *this to allow return Promise().resolve(value);
       const Promise& resolve() const {
@@ -94,7 +129,7 @@ namespace poolqueue {
          return *this;
       }
 
-      // Reject a default constructed Promise.
+      // Reject a non-dependent Promise.
       // @error Exception pointer, e.g. from std::make_exception_ptr().
       //
       // @return *this to allow return Promise().reject(error);
@@ -127,7 +162,7 @@ namespace poolqueue {
       // returned by then() will receive q's value or error (which may
       // not happen immediately).
       //
-      // @return Promise to receive the eventual result.
+      // @return Dependent Promise to receive the eventual result.
       template<typename Resolve, typename Reject = detail::NullReject >
       Promise then(Resolve&& onResolve, Reject&& onReject = Reject()) const {
          typedef typename detail::CallableTraits<Resolve>::ArgumentType ResolveArgument;
@@ -172,6 +207,8 @@ namespace poolqueue {
       //
       // This method is the same as then() except that it only
       // attaches a reject callback.
+      //
+      // @return Dependent Promise to receive the eventual result.
       template<typename Reject>
       Promise except(Reject&& onReject) const {
          return then(detail::NullResolve(), std::forward<Reject>(onReject));
@@ -198,10 +235,9 @@ namespace poolqueue {
       // Get Promise type.
       //
       // This method returns the type of the value on a Promise.  If
-      // this is a default constructed Promise then the type of the
-      // settled value is returned or typeid(Promise) if not yet
-      // settled. Otherwise the type of the callback return value
-      // is returned.
+      // this is a non-dependent Promise then the type of the settled
+      // value is returned or typeid(Promise) if not yet settled.
+      // Otherwise the type of the callback return value is returned.
       //
       // @return Type object on the Promise.
       const std::type_info& type() const;
@@ -238,7 +274,8 @@ namespace poolqueue {
       // If the returned Promise resolves, no value is passed. Values
       // can be collected from the input Promises.
       //
-      // @return New Promise that resolves on all or rejects on any.
+      // @return Dependent Promise that resolves on all or rejects on
+      //         any.
       template<typename Iterator>
       static Promise all(Iterator bgn, Iterator end) {
          Promise p;
@@ -275,7 +312,8 @@ namespace poolqueue {
       // If the returned Promise resolves, no value is passed. Values
       // can be collected from the input Promises.
       //
-      // @return New Promise that resolves on all or rejects on any.
+      // @return Dependent Promise that resolves on all or rejects on
+      //         any.
       static Promise all(std::initializer_list<Promise> promises) {
          return all(promises.begin(), promises.end());
       }
@@ -331,7 +369,8 @@ namespace poolqueue {
       std::shared_ptr<Pimpl> pimpl;
 
       Promise(std::shared_ptr<Pimpl>&&);
-         
+      Promise(detail::CallbackWrapper *, detail::CallbackWrapper *);
+      
       void settle(Value&& result) const;
       Promise attach(detail::CallbackWrapper *, detail::CallbackWrapper *) const;
       const Value& getValue() const;

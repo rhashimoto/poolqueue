@@ -237,6 +237,12 @@ poolqueue::Promise::Promise(std::shared_ptr<Pimpl>&& other)
    : pimpl(std::move(other)) {
 }
 
+poolqueue::Promise::Promise(detail::CallbackWrapper *onResolve, detail::CallbackWrapper *onReject)
+   : pimpl(std::make_shared<Pimpl>()) {
+   pimpl->onResolve_.reset(onResolve);
+   pimpl->onReject_.reset(onReject);
+}
+
 poolqueue::Promise::~Promise() noexcept {
 }
 
