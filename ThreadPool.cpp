@@ -152,49 +152,66 @@ namespace {
 
       void setThreadCount(size_t n) {
          // Add threads.
-         if (n > threads_.size()) {
+         const auto oldCount = threads_.size();
+         if (n > oldCount) {
             synchronize().wait();
 
-            // Start new threads. std::deque<T>::emplace_back() does
-            // not invalidate existing element references.
-            std::lock_guard<std::mutex> lock(mutex_);
-            for (size_t i = threads_.size(); i < n; ++i) {
-               running_.emplace_back(true);
-               threads_.emplace_back([this, i]() {
-                     run(i);
-                  });
-               ids_[threads_.back().get_id()] = static_cast<int>(i);
+            // Use copy-and-swap for exception safety.
+            decltype(ids_) ids = ids_;
+            std::unique_lock<std::mutex> lock(mutex_);
+            try {
+               for (size_t i = oldCount; i < n; ++i) {
+                  // Any of these statements can throw.
+                  running_.emplace_back(true);
+                  threads_.emplace_back([this, i]() { run(i); });
+                  ids[threads_.back().get_id()] = static_cast<int>(i);
+               }
+
+               ids_.swap(ids);
+            }
+            catch (...) {
+               // Tell newly launched threads to exit.
+               running_.resize(oldCount);
+
+               // Join any newly launched threads.
+               lock.unlock();
+               threads_.resize(oldCount);
+               throw;
             }
          }
 
          // Remove threads.
-         else if (n < threads_.size()) {
+         else if (n < oldCount) {
             synchronize().wait();
 
-            // Separate threads to remove.
-            std::vector<std::thread> remove(threads_.size() - n);
-            std::unique_lock<std::mutex> lock(mutex_);
+            // Separate threads to remove. A lock is not acquired because
+            // we assume no tasks are simultaneously posted.
+            std::vector<std::thread> remove(oldCount - n);
             std::move(threads_.begin() + n, threads_.end(), remove.begin());
             threads_.erase(threads_.begin() + n, threads_.end());
 
-            // Signal threads.
-            for (size_t i = 0; i < remove.size(); ++i) {
-               ids_.erase(threads_[i].get_id());
-               running_[i] = false;
+            // Signal threads. Here we need the lock to make sure that
+            // all threads will test the condition.
+            {
+               std::lock_guard<std::mutex> lock(mutex_);
+               for (size_t i = 0; i < remove.size(); ++i)
+                  running_[n + i] = false;
+               condition_.notify_all();
             }
-            condition_.notify_all();
-            lock.unlock();
             
             // Wait for removed threads to exit.
-            for (auto& t : remove)
+            for (auto& t : remove) {
+               ids_.erase(t.get_id());
                t.join();
+            }
 
             running_.resize(n);
          }
 
          assert(threads_.size() == n);
          assert(running_.size() == n);
-         assert(std::count(running_.begin(), running_.end(), true) == n);
+         assert(std::all_of(running_.begin(), running_.end(), [](bool b) { return b; }));
+         assert(ids_.size() == n);
       }
 
       size_t getThreadCount() const {
@@ -224,6 +241,13 @@ namespace {
       }
 
       void run(size_t i) {
+         {
+            // Exit cleanly if anything in start up failed.
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (i >= running_.size())
+               return;
+         }
+         
          auto& running = running_[i];
          poolqueue::Promise f;
          while (running) {
