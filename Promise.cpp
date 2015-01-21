@@ -17,6 +17,7 @@ limitations under the License.
 #include <cstdlib>
 #include <iostream>
 #include <mutex>
+#include <vector>
 
 #include "Promise.hpp"
 
@@ -212,15 +213,6 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          p.pimpl->link(shared_from_this());
       }
    }
-
-   std::shared_ptr<Pimpl> attach(detail::CallbackWrapper *onResolve, detail::CallbackWrapper *onReject) {
-      auto result = std::make_shared<Pimpl>();
-      result->onResolve_.reset(onResolve);
-      result->onReject_.reset(onReject);
-      
-      link(result);
-      return result;;
-   }
 };
 
 poolqueue::Promise::Promise()
@@ -280,8 +272,7 @@ poolqueue::Promise::settle(Value&& value) const {
    pimpl->settle(std::move(value));
 }
 
-Promise
-poolqueue::Promise::attach(detail::CallbackWrapper *onResolve,
-                           detail::CallbackWrapper *onReject) const {
-   return Promise(pimpl->attach(onResolve, onReject));
+void
+poolqueue::Promise::attach(const Promise& next) const {
+   pimpl->link(next.pimpl);
 }

@@ -18,6 +18,7 @@ limitations under the License.
 #include <condition_variable>
 #include <map>
 #include <thread>
+#include <vector>
 
 #include "Delay.hpp"
 

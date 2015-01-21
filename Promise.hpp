@@ -20,7 +20,6 @@ limitations under the License.
 #include <functional>
 #include <initializer_list>
 #include <memory>
-#include <vector>
 
 #include "Promise_detail.hpp"
 
@@ -172,33 +171,12 @@ namespace poolqueue {
       // @return Dependent Promise to receive the eventual result.
       template<typename Resolve, typename Reject = detail::NullReject >
       Promise then(Resolve&& onResolve, Reject&& onReject = Reject()) const {
-         typedef typename detail::CallableTraits<Resolve>::ArgumentType ResolveArgument;
-         static_assert(!std::is_same<typename std::decay<ResolveArgument>::type, std::exception_ptr>::value,
-                       "onResolve callback cannot take a std::exception_ptr argument.");
-         typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
-         static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value,
-                       "onReject callback must take a std::exception_ptr argument.");
-
-         constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
-         constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;
-         typedef typename detail::CallableTraits<Resolve>::ResultType ResolveResult;
-         typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
-         static_assert(isResolveNull || isRejectNull ||
-                       std::is_same<ResolveResult, RejectResult>::value,
-                       "onResolve and onReject return types must match");
-
          if (closed())
             throw std::logic_error("Promise is closed");
-
-         auto onResolveWrapped = !isResolveNull ?
-            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
-            static_cast<detail::CallbackWrapper *>(nullptr);
          
-         auto onRejectWrapped = !isRejectNull ?
-            detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
-            static_cast<detail::CallbackWrapper *>(nullptr);
-
-         return attach(onResolveWrapped, onRejectWrapped);
+         Promise next(std::forward<Resolve>(onResolve), std::forward<Reject>(onReject));
+         attach(next);
+         return next;
       }
          
       // Attach reject callback only.
@@ -218,8 +196,8 @@ namespace poolqueue {
       // Disallow future then/except calls.
       //
       // This method explicitly closes a Promise to disallow calling
-      // then() or except(). A closed Promise may execute slightly
-      // faster.
+      // then() or except(). A closed Promise may settle slightly
+      // faster than an unclosed Promise.
       void close();
       
       // Get the settled state.
@@ -232,8 +210,9 @@ namespace poolqueue {
 
       // Get the closed state.
       //
-      // A Promise is closed when an onResolve callback that takes an
-      // rvalue reference argument has been attached with then().  No
+      // A Promise is closed when either (1) its close() method has
+      // been called or (2) an onResolve callback that takes an rvalue
+      // reference argument has been attached with then().  No
       // additional callbacks can be added to a closed Promise (i.e.
       // calls to then() or except() will throw an exception).
       //
@@ -349,7 +328,7 @@ namespace poolqueue {
       Promise(detail::CallbackWrapper *, detail::CallbackWrapper *);
       
       void settle(Value&& result) const;
-      Promise attach(detail::CallbackWrapper *, detail::CallbackWrapper *) const;
+      void attach(const Promise& next) const;
    };
 
    inline void swap(Promise& a, Promise& b) {
