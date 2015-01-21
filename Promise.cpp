@@ -29,10 +29,6 @@ namespace {
    struct Unset {
    };
 
-   // Private type to signify a moved Promise value.
-   struct Moved {
-   };
-   
    // This is the handler called when a Promise is destroyed and it
    // contains an undelivered exception.
    Promise::ExceptionHandler undeliveredExceptionHandler = [](const std::exception_ptr& e) {
@@ -65,7 +61,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    Value value_;
    std::atomic<bool> closed_;
    std::atomic<bool> settled_;
-   std::atomic<bool> propagated_;
+   std::atomic<bool> undeliveredException_;
    
    std::unique_ptr<detail::CallbackWrapper> onResolve_;
    std::unique_ptr<detail::CallbackWrapper> onReject_;
@@ -74,25 +70,21 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       : value_(Unset())
       , closed_(false)
       , settled_(false)
-      , propagated_(false) {
+      , undeliveredException_(false) {
    }
 
    Pimpl(const Pimpl& other) = delete;
 
    ~Pimpl() {
       // Handle undelivered exceptions.
-      if (!propagated_.load(std::memory_order_relaxed) &&
-          value_.type() == typeid(std::exception_ptr) &&
-          undeliveredExceptionHandler) {
-         // Protect the exception handler from concurrent execution.
-         static std::mutex m;
-         std::lock_guard<std::mutex> lock(m);
+      if (undeliveredException_.load(std::memory_order_relaxed) && undeliveredExceptionHandler) {
+         std::lock_guard<decltype(mutex_)> lock(mutex_);
          undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
       }
    }
 
    void close() {
-      closed_.store(true, std::memory_order_relaxed);
+      closed_ = true;
    }
    
    bool settled() const {
@@ -111,12 +103,20 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       {
          std::lock_guard<decltype(mutex_)> lock(mutex_);
          downstream_.push_back(next);
-         if (value_.type() != typeid(Unset))
+         if (value_.type() != typeid(Unset)) {
             targets.swap(downstream_);
+
+            if (value_.type() == typeid(std::exception_ptr))
+               undeliveredException_.store(false, std::memory_order_relaxed);
+         }
 
          // A Promise is closed once an onResolve callback with an rvalue
          // reference argument has been added because that callback can
          // steal (i.e. move) the value.
+         //
+         // Storing to the atomic closed_ has release semantics so
+         // settle() can access downstream_ without taking a lock as
+         // long as it reads closed_.
          if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
             closed_ = true;
       }
@@ -127,20 +127,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    // Push value downstream.
    void propagate(const decltype(downstream_)& targets) {
+      assert(!targets.empty());
       assert(value_.type() != typeid(Unset));
       for (const auto& target : targets)
          target->settle(std::move(value_));
-
-      // The propagated_ flag is set if the value is sent to any
-      // downstream target. Once set, it should never be unset.
-      assert(!(propagated_ && targets.empty()));
-      propagated_.store(!targets.empty(), std::memory_order_relaxed);
-
-      // Mark the value as invalid if it has been allowed to be
-      // moved (it might not have actually been moved but we can't
-      // tell).
-      if (closed_.load(std::memory_order_relaxed))
-         value_ = Moved();
    }
 
    // Set promise value.
@@ -178,34 +168,48 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       onReject_.reset();
       
       if (cbValue.type() != typeid(Promise)) {
+         // If a callback transformed the value, move it.
+         // If the value came from upstream, copy it.
+         // If the value came from the user, move it.
+         assert(value_.type() == typeid(Unset));
+         if (cbValue.type() != typeid(Unset))
+            value_.swap(cbValue);
+         else if (upstream_.lock())
+            value_ = value;
+         else
+            value_.swap(value);
+
+         // Local update is complete.
+         settled_.store(true, std::memory_order_relaxed);
+         upstream_.reset();
+
+         const bool closed = closed_;
          decltype(downstream_) targets;
          {
-            // Access to targets_ is exclusive when closed so the lock
-            // can be avoided in that state. When not closed there is
-            // a possible race with link() so the lock is required.
+            // Access to downstream_ is exclusive when closed so the
+            // lock can be avoided in that state. When not closed
+            // there is a possible race with link() so the lock is
+            // required.
             std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
-            if (!closed_)
+            if (!closed)
                lock.lock();
-            
-            // If a callback transformed the value, move it.
-            // If the value came from upstream, copy it.
-            // If the value came from the user, move it.
-            assert(value_.type() == typeid(Unset));
-            if (cbValue.type() != typeid(Unset))
-               value_.swap(cbValue);
-            else if (upstream_.lock())
-               value_ = value;
-            else
-               value_.swap(value);
-
-            // Finalize settled state.
-            upstream_.reset();
-            settled_.store(true, std::memory_order_relaxed);
             
             targets.swap(downstream_);
          }
 
-         propagate(targets);
+         if (!targets.empty())
+            propagate(targets);
+         
+         else if (value_.type() == typeid(std::exception_ptr)) {
+            // The value contains an undelivered exception. If it
+            // remains undelivered at destruction then the handler
+            // will be called, potentially in a different thread. We
+            // ensure that the value will be valid there using release
+            // semantics if the lock was not used.
+            undeliveredException_.store(
+               true,
+               closed ? std::memory_order_release : std::memory_order_relaxed);
+         }
       }
       else {
          // Make a returned Promise the new upstream.
