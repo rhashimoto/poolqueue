@@ -325,7 +325,6 @@ namespace poolqueue {
       struct Pimpl;
       std::shared_ptr<Pimpl> pimpl;
 
-      Promise(std::shared_ptr<Pimpl>&&);
       Promise(detail::CallbackWrapper *, detail::CallbackWrapper *);
       
       void settle(Value&& result) const;

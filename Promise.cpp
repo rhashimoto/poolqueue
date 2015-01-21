@@ -225,10 +225,6 @@ poolqueue::Promise::Promise()
    static_assert(std::is_nothrow_move_assignable<Promise>::value, "noexcept assign");
 }
 
-poolqueue::Promise::Promise(std::shared_ptr<Pimpl>&& other)
-   : pimpl(std::move(other)) {
-}
-
 poolqueue::Promise::Promise(detail::CallbackWrapper *onResolve, detail::CallbackWrapper *onReject)
    : pimpl(std::make_shared<Pimpl>()) {
    pimpl->onResolve_.reset(onResolve);
