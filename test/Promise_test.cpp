@@ -244,14 +244,9 @@ BOOST_AUTO_TEST_CASE(basic) {
    {
       Promise p;
       BOOST_CHECK(!p.settled());
-      BOOST_CHECK(p.type() == typeid(Promise));
-      BOOST_CHECK_THROW(p.cast<int>(), std::runtime_error);
    
       p.resolve(42);
       BOOST_CHECK(p.settled());
-      BOOST_CHECK(p.type() == typeid(int));
-      BOOST_CHECK_EQUAL(p.cast<int>(), 42);
-      BOOST_CHECK_EQUAL(p.cast<const int&>(), 42);
    }
 
    Promise::ExceptionHandler originalHandler = Promise::setUndeliveredExceptionHandler([](const std::exception_ptr&) {});
@@ -259,10 +254,8 @@ BOOST_AUTO_TEST_CASE(basic) {
 
       Promise p;
       BOOST_CHECK(!p.settled());
-      BOOST_CHECK(p.type() == typeid(Promise));
       p.reject(std::make_exception_ptr(0));
       BOOST_CHECK(p.settled());
-      BOOST_CHECK(p.type() == typeid(std::exception_ptr));
 
    }
    Promise::setUndeliveredExceptionHandler(originalHandler);
@@ -355,7 +348,7 @@ BOOST_AUTO_TEST_CASE(basic_then) {
          BOOST_CHECK(false);
       });
 
-   BOOST_CHECK_THROW(p.then([](float) {}), std::invalid_argument);
+   BOOST_CHECK_THROW(p.then([](float) {}), std::bad_cast);
    BOOST_CHECK_THROW(p.resolve(0), std::logic_error);
 }
 
@@ -542,10 +535,6 @@ BOOST_AUTO_TEST_CASE(rvalue) {
    BOOST_CHECK_THROW(p.then([](const std::string&) {}), std::logic_error);
    BOOST_CHECK_THROW(p.except([](const std::exception_ptr&) {}), std::logic_error);
 
-   // Casting is invalid on a closed Promise.
-   p.resolve(std::string("rvalue successfully moved"));
-   BOOST_CHECK_THROW(p.cast<std::string>(), std::runtime_error);
-   
    // Verify that no accidental copies are made.
    int coverage = 0;
    Promise().resolve(NonCopyable())
@@ -649,17 +638,31 @@ BOOST_AUTO_TEST_CASE(all) {
       int complete = 0;
       Promise all = Promise::all({p0, p1, p2, p3});
       all.then([&]() {
-            BOOST_CHECK_EQUAL(p0.cast<int>(), 0);
-            BOOST_CHECK_EQUAL(p1.cast<int>(), 1);
-            BOOST_CHECK_EQUAL(p2.cast<int>(), 2);
-            BOOST_CHECK_EQUAL(p3.cast<int>(), 3);
-            ++complete;
+            p0.then([&](int value) {
+                  BOOST_CHECK_EQUAL(value, 0);
+                  ++complete;
+               });
+            p1.then([&](int value) {
+                  BOOST_CHECK_EQUAL(value, 1);
+                  ++complete;
+               });
+            p2.then([&](int value) {
+                  BOOST_CHECK_EQUAL(value, 2);
+                  ++complete;
+               });
+            p3.then([&](int value) {
+                  BOOST_CHECK_EQUAL(value, 3);
+                  ++complete;
+               });
          });
 
       p0.resolve(0);
+      BOOST_CHECK_EQUAL(complete, 0);
       p1.resolve(1);
+      BOOST_CHECK_EQUAL(complete, 0);
       p2.resolve(2);
+      BOOST_CHECK_EQUAL(complete, 0);
       p3.resolve(3);
-      BOOST_CHECK_EQUAL(complete, 1);
+      BOOST_CHECK_EQUAL(complete, 4);
    }
 }

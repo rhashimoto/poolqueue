@@ -97,6 +97,13 @@ namespace poolqueue {
             !std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value ?            
             detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
             static_cast<detail::CallbackWrapper *>(nullptr)) {
+         typedef typename detail::CallableTraits<Resolve>::ArgumentType ResolveArgument;
+         static_assert(!std::is_same<typename std::decay<ResolveArgument>::type, std::exception_ptr>::value,
+                       "onResolve callback cannot take a std::exception_ptr argument.");
+         typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
+         static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value,
+                       "onReject callback must take a std::exception_ptr argument.");
+
          constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
          constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;
          typedef typename detail::CallableTraits<Resolve>::ResultType ResolveResult;
@@ -183,12 +190,6 @@ namespace poolqueue {
          if (closed())
             throw std::logic_error("Promise is closed");
 
-         const std::type_info& uType = type();
-         if (!std::is_same<ResolveArgument, void>::value &&
-             uType != typeid(Promise) &&
-             uType != typeid(typename std::decay<ResolveArgument>::type))
-            throw std::invalid_argument("onResolve argument does not match Promise type");
-         
          auto onResolveWrapped = !isResolveNull ?
             detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
             static_cast<detail::CallbackWrapper *>(nullptr);
@@ -214,6 +215,13 @@ namespace poolqueue {
          return then(detail::NullResolve(), std::forward<Reject>(onReject));
       }
 
+      // Disallow future then/except calls.
+      //
+      // This method explicitly closes a Promise to disallow calling
+      // then() or except(). A closed Promise may execute slightly
+      // faster.
+      void close();
+      
       // Get the settled state.
       //
       // A Promise is settled when it has been either resolved or
@@ -231,37 +239,6 @@ namespace poolqueue {
       //
       // @return true if closed.
       bool closed() const;
-
-      // Get Promise type.
-      //
-      // This method returns the type of the value on a Promise.  If
-      // this is a non-dependent Promise then the type of the settled
-      // value is returned or typeid(Promise) if not yet settled.
-      // Otherwise the type of the callback return value is returned.
-      //
-      // @return Type object on the Promise.
-      const std::type_info& type() const;
-
-      // Access the value of a settled Promise.
-      //
-      // This method provides access to the value or error on
-      // a settled Promise, either by value or const reference.
-      // An exception is thrown if the Promise is not settled
-      // or if the cast type is incorrect.
-      //
-      // @return Cast value.
-      template<typename T>
-      T cast() const {
-         constexpr bool isReference = std::is_reference<T>::value;
-         constexpr bool isConst = std::is_const<typename std::remove_reference<T>::type>::value;
-         static_assert(!isReference || isConst,
-                       "access must be by value or const reference");
-         if (!settled())
-            throw std::runtime_error("Promise is not settled");
-         if (closed())
-            throw std::runtime_error("Promise value has been moved");
-         return getValue().cast<T>();
-      }
 
       // Promise conjunction on iterator range.
       // @bgn Begin iterator.
@@ -373,16 +350,6 @@ namespace poolqueue {
       
       void settle(Value&& result) const;
       Promise attach(detail::CallbackWrapper *, detail::CallbackWrapper *) const;
-      const Value& getValue() const;
-
-      template<typename T>
-      static T cast(Value& value) {
-         return value.cast<T>();
-      }
-      template<typename T>
-      static const T& cast(const Value& value) {
-         return value.cast<const T&>();
-      }
    };
 
    inline void swap(Promise& a, Promise& b) {

@@ -62,16 +62,18 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::vector<std::shared_ptr<Pimpl> > downstream_;
 
    Value value_;
-   std::atomic<bool> propagated_;
    std::atomic<bool> closed_;
+   std::atomic<bool> settled_;
+   std::atomic<bool> propagated_;
    
    std::unique_ptr<detail::CallbackWrapper> onResolve_;
    std::unique_ptr<detail::CallbackWrapper> onReject_;
    
    Pimpl()
       : value_(Unset())
-      , propagated_(false)
-      , closed_(false) {
+      , closed_(false)
+      , settled_(false)
+      , propagated_(false) {
    }
 
    Pimpl(const Pimpl& other) = delete;
@@ -84,42 +86,24 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          // Protect the exception handler from concurrent execution.
          static std::mutex m;
          std::lock_guard<std::mutex> lock(m);
-         undeliveredExceptionHandler(cast<const std::exception_ptr&>(value_));
+         undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
       }
    }
 
-   bool settled() {
-      std::lock_guard<decltype(mutex_)> lock(mutex_);
-      if (upstream_.lock()) {
-         // Still waiting on upstream, not settled.
-         return false;
-      }
-      return value_.type() != typeid(Unset);
+   void close() {
+      closed_.store(true, std::memory_order_relaxed);
+   }
+   
+   bool settled() const {
+      return settled_.load(std::memory_order_relaxed);
    }
 
-   bool closed() {
+   bool closed() const {
       return closed_.load(std::memory_order_relaxed);
    }
 
-   const std::type_info& type() {
-      std::lock_guard<decltype(mutex_)> lock(mutex_);
-      if (onResolve_)
-         return onResolve_->resultType();
-      if (onReject_)
-         return onReject_->resultType();
-      if (value_.type() != typeid(Unset))
-         return value_.type();
-      return typeid(Promise);
-   }
-   
    // Attach a downstream promise.
    void link(const std::shared_ptr<Pimpl>& next) {
-      // A Promise is closed once an onResolve callback with an rvalue
-      // reference argument has been added because that callback can
-      // steal (i.e. move) the value.
-      if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
-         closed_.store(true, std::memory_order_relaxed);
-      
       next->upstream_ = shared_from_this();
 
       decltype(downstream_) targets;
@@ -128,6 +112,12 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          downstream_.push_back(next);
          if (value_.type() != typeid(Unset))
             targets.swap(downstream_);
+
+         // A Promise is closed once an onResolve callback with an rvalue
+         // reference argument has been added because that callback can
+         // steal (i.e. move) the value.
+         if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
+            closed_ = true;
       }
 
       if (!targets.empty())
@@ -189,13 +179,17 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       if (cbValue.type() != typeid(Promise)) {
          decltype(downstream_) targets;
          {
-            std::lock_guard<decltype(mutex_)> lock(mutex_);
-            if (value_.type() != typeid(Unset))
-               throw std::logic_error("Promise already settled");
-
+            // Access to targets_ is exclusive when closed so the lock
+            // can be avoided in that state. When not closed there is
+            // a possible race with link() so the lock is required.
+            std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
+            if (!closed_)
+               lock.lock();
+            
             // If a callback transformed the value, move it.
             // If the value came from upstream, copy it.
             // If the value came from the user, move it.
+            assert(value_.type() == typeid(Unset));
             if (cbValue.type() != typeid(Unset))
                value_.swap(cbValue);
             else if (upstream_.lock())
@@ -203,8 +197,9 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
             else
                value_.swap(value);
 
-            // Ensure that subsequent calls to settled() return true.
+            // Finalize settled state.
             upstream_.reset();
+            settled_.store(true, std::memory_order_relaxed);
             
             targets.swap(downstream_);
          }
@@ -247,6 +242,11 @@ poolqueue::Promise::Promise(detail::CallbackWrapper *onResolve, detail::Callback
 poolqueue::Promise::~Promise() noexcept {
 }
 
+void
+poolqueue::Promise::close() {
+   pimpl->close();
+}
+
 bool
 poolqueue::Promise::settled() const {
    return pimpl->settled();
@@ -255,11 +255,6 @@ poolqueue::Promise::settled() const {
 bool
 poolqueue::Promise::closed() const {
    return pimpl->closed();
-}
-
-const std::type_info&
-poolqueue::Promise::type() const {
-   return pimpl->type();
 }
 
 Promise::ExceptionHandler
@@ -278,6 +273,8 @@ poolqueue::Promise::setBadCastExceptionHandler(const BadCastHandler& handler) {
 
 void
 poolqueue::Promise::settle(Value&& value) const {
+   if (pimpl->settled())
+      throw std::logic_error("Promise already settled");
    if (pimpl->upstream_.lock())
       throw std::logic_error("invalid operation on dependent Promise");
    pimpl->settle(std::move(value));
@@ -287,9 +284,4 @@ Promise
 poolqueue::Promise::attach(detail::CallbackWrapper *onResolve,
                            detail::CallbackWrapper *onReject) const {
    return Promise(pimpl->attach(onResolve, onReject));
-}
-
-const Promise::Value&
-poolqueue::Promise::getValue() const {
-   return pimpl->value_;
 }
