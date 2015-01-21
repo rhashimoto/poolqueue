@@ -239,15 +239,16 @@ namespace poolqueue {
             auto count = std::make_shared<std::atomic<size_t>>(n);
             auto rejected = std::make_shared<std::atomic<bool>>(false);
             for (auto i = bgn; i != end; ++i) {
-               i->then([=]() {
+               i->then(
+                  [=]() {
                      if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
                         p.resolve();
                      }
-                  })
-                  .except([=](const std::exception_ptr& e) {
-                        if (!rejected->exchange(true, std::memory_order_relaxed))
-                           p.reject(e);
-                     });
+                  },
+                  [=](const std::exception_ptr& e) {
+                     if (!rejected->exchange(true, std::memory_order_relaxed))
+                        p.reject(e);
+                  });
             }
          }
          else {

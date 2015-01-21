@@ -322,9 +322,9 @@ namespace {
 }
 
 void
-poolqueue::ThreadPool::enqueue(Promise&& f) {
+poolqueue::ThreadPool::enqueue(Promise& f) {
    Pimpl& pimpl = Pimpl::singleton();
-   pimpl.enqueue(std::move(f));
+   pimpl.enqueue(f);
 }
 
 int
@@ -419,7 +419,7 @@ poolqueue::ThreadPool::Strand::currentId() const {
 }
 
 void
-poolqueue::ThreadPool::Strand::enqueue(Promise&& f) {
+poolqueue::ThreadPool::Strand::enqueue(Promise& f) {
    pimpl->enqueue(f);
 }
 

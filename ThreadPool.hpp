@@ -47,10 +47,9 @@ namespace poolqueue {
       //         of the function argument.
       template<typename F>
       static Promise post(F&& f) {
-         Promise p;
-         Promise then = p.then(std::forward<F>(f));
-         enqueue(std::move(p));
-         return then;
+         Promise p(std::forward<F>(f));
+         enqueue(p);
+         return p;
       }
 
       // Ensure that a job runs in the thread pool
@@ -64,7 +63,7 @@ namespace poolqueue {
       template<typename F>
       static Promise dispatch(F&& f) {
          if (threadId() >= 0)
-            return Promise().resolve().then(std::forward<F>(f));
+            return Promise(std::forward<F>(f));
          else
             return post(std::forward<F>(f));
       }
@@ -139,10 +138,9 @@ namespace poolqueue {
          //         of the function argument.
          template<typename F>
          Promise post(F&& f) {
-            Promise p;
-            Promise then = p.then(std::forward<F>(f));
-            enqueue(std::move(p));
-            return then;
+            Promise p(std::forward<F>(f));
+            enqueue(p);
+            return p;
          }
 
          // Post (enqueue) a job.
@@ -196,11 +194,11 @@ namespace poolqueue {
          std::unique_ptr<Pimpl> pimpl;
 
          std::thread::id currentId() const;
-         void enqueue(Promise&& f);
+         void enqueue(Promise& f);
       };
 
    private:
-      static void enqueue(Promise&& f);
+      static void enqueue(Promise& f);
    };
 
    inline void swap(ThreadPool::Strand& a, ThreadPool::Strand& b) {
