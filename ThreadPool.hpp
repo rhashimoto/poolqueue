@@ -47,6 +47,10 @@ namespace poolqueue {
       //         of the function argument.
       template<typename F>
       static Promise post(F&& f) {
+         typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         static_assert(std::is_same<Argument, void>::value,
+                       "function must take no argument");
+         
          Promise p(std::forward<F>(f));
          enqueue(p);
          return p;
@@ -62,6 +66,10 @@ namespace poolqueue {
       //         of the function argument.
       template<typename F>
       static Promise dispatch(F&& f) {
+         typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         static_assert(std::is_same<Argument, void>::value,
+                       "function must take no argument");
+
          if (threadId() >= 0)
             return Promise(std::forward<F>(f));
          else
@@ -75,6 +83,10 @@ namespace poolqueue {
       // input function in a ThreadPool thread.
       template<typename F>
       static std::function<Promise()> wrap(const F& f) {
+         typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         static_assert(std::is_same<Argument, void>::value,
+                       "function must take no argument");
+
          return [=]() {
             return dispatch(f);
          };
