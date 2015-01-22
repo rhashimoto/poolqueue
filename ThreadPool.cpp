@@ -356,47 +356,34 @@ poolqueue::ThreadPool::synchronize() {
 
 struct poolqueue::ThreadPool::Strand::Pimpl {
    std::mutex mutex_;
-   std::queue<Promise> queue_;
-   std::condition_variable condition_;
-   std::thread::id currentId_;
+   Promise tail_;
+   std::atomic<std::thread::id> currentId_;
 
+   Pimpl() {
+        tail_.resolve();
+   }
+   
    template<typename F>
    void enqueue(F&& f) {
+      Pimpl *self = this;
+
+      // When the current last strand task completes...
       std::lock_guard<std::mutex> lock(mutex_);
-      queue_.push(std::forward<F>(f));
-      if (queue_.size() == 1)
-         ThreadPool::post([this]() { execute(); });
-   }
-
-   void execute() {
-      // Get the Promise at the top of the queue. We move it from the
-      // queue because we don't want to hold the queue lock. The queue
-      // is not popped here so enqueue() will not post.
-      Promise p;
-      {
-         std::lock_guard<std::mutex> lock(mutex_);
-         currentId_ = std::this_thread::get_id();
-         assert(!queue_.empty());
-         p.swap(queue_.front());
-      }
-
-      // Always run this code after executing the function.
-      struct Finally {
-         std::function<void()> f_;
-         Finally(const std::function<void()>& f) : f_(f) {}
-         ~Finally() { f_(); }
-      } finally([this]() {
-            std::lock_guard<std::mutex> lock(mutex_);
-            currentId_ = std::thread::id();
-            queue_.pop();
-            if (!queue_.empty())
-               ThreadPool::post([this]() { execute(); });
-            else
-               condition_.notify_one();
-         });
-
-      // Execute the function.
-      p.resolve();
+      tail_.then([=]() {
+            // ...post the next task to the thread pool.
+            ThreadPool::post([=]() {
+                  // Set the thread id (for dispatch) and go.
+                  self->currentId_ = std::this_thread::get_id();
+                  f.resolve();
+                  self->currentId_ = std::thread::id();
+               }).close();
+         }).close();
+      tail_.close();
+      
+      // Update the Promise that resolves on completion. The input
+      // Promise would work, except that it is returned to the user
+      // who could close it. So instead we chain a dummy Promise.
+      tail_ = f.then([](){});
    }
 };
 
@@ -414,7 +401,6 @@ poolqueue::ThreadPool::Strand::~Strand() {
 
 std::thread::id
 poolqueue::ThreadPool::Strand::currentId() const {
-   std::lock_guard<std::mutex> lock(pimpl->mutex_);
    return pimpl->currentId_;
 }
 
@@ -429,6 +415,6 @@ poolqueue::ThreadPool::Strand::synchronize() {
    std::shared_future<void> result(p->get_future());
    post([=]() {
          p->set_value();
-      });
+      }).close();
    return result;
 }

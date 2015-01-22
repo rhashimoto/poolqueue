@@ -198,7 +198,9 @@ namespace poolqueue {
       // This method explicitly closes a Promise to disallow calling
       // then() or except(). A closed Promise may settle slightly
       // faster than an unclosed Promise.
-      void close();
+      //
+      // @return *this
+      Promise& close();
       
       // Get the settled state.
       //

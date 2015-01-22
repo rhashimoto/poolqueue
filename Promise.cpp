@@ -234,9 +234,10 @@ poolqueue::Promise::Promise(detail::CallbackWrapper *onResolve, detail::Callback
 poolqueue::Promise::~Promise() noexcept {
 }
 
-void
+Promise&
 poolqueue::Promise::close() {
    pimpl->close();
+   return *this;
 }
 
 bool
