@@ -51,12 +51,14 @@ BOOST_AUTO_TEST_CASE(cancel) {
          })
          .except([&](const std::exception_ptr& e) {
                try {
-                  if (e)
-                     std::rethrow_exception(e);
+                  std::rethrow_exception(e);
                }
                catch (const std::runtime_error& e) {
                   ++exceptCount;
                   BOOST_CHECK_EQUAL(e.what(), std::string());
+               }
+               catch (const Delay::cancelled& e) {
+                  ++exceptCount;
                }
                catch (...) {
                   BOOST_CHECK(false);
@@ -68,10 +70,13 @@ BOOST_AUTO_TEST_CASE(cancel) {
       v[i].swap(p);
    }
 
-   Delay::cancel(v[1]);
-   Delay::cancel(v[2], std::make_exception_ptr(std::runtime_error("")));
-   Delay::cancel(v[4]);
+   BOOST_CHECK(Delay::cancel(v[1]));
+   BOOST_CHECK(Delay::cancel(v[2], std::make_exception_ptr(std::runtime_error(""))));
+   BOOST_CHECK(Delay::cancel(v[4]));
 
+   BOOST_CHECK(!Delay::cancel(Promise()));
+   BOOST_CHECK(!Delay::cancel(v[1]));
+               
    while (count)
       std::this_thread::yield();
 
@@ -79,5 +84,5 @@ BOOST_AUTO_TEST_CASE(cancel) {
    BOOST_CHECK_EQUAL(std::count(results.begin(), results.end(), 1), 0);
    BOOST_CHECK_EQUAL(std::count(results.begin(), results.end(), 2), 0);
    BOOST_CHECK_EQUAL(std::count(results.begin(), results.end(), 4), 0);
-   BOOST_CHECK_EQUAL(exceptCount, 1);
+   BOOST_CHECK_EQUAL(exceptCount, 3);
 }

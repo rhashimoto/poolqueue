@@ -26,13 +26,20 @@ namespace poolqueue {
    //
    // This class contains static member functions to create and cancel
    // asynchronous one-shot delays using Promises.
+   //
+   // Any outstanding Delay instances will be cancelled during static
+   // object destruction. This can result in undelivered exceptions
+   // if no reject handlers are attached.
    class Delay {
    public:
+      struct cancelled : public std::exception {
+      };
+      
       // Instantiate a delay.
       // @duration Any std::chrono::duration, e.g. std::chrono::hours(2).
       //
       // This static function returns a Promise that will be resolved
-      // after at least the duration argument.
+      // no sooner than the duration argument.
       //
       // @return Promise resolved at expiration or rejected if cancelled.
       template<typename T>
@@ -48,8 +55,11 @@ namespace poolqueue {
       //
       // This function cancels the delayed Promise returned by
       // create(), returning true if successful. The Promise will be
-      // rejected with the exception_ptr argument.
-      static bool cancel(const Promise& p, const std::exception_ptr& e = std::exception_ptr());
+      // rejected with the optional exception_ptr argument, or
+      // Delay::cancelled if missing.
+      //
+      // @return true if cancel was successful.
+      static bool cancel(const Promise& p, const std::exception_ptr& e = std::make_exception_ptr(cancelled()));
          
    private:
       static void createImpl(

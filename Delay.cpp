@@ -22,6 +22,7 @@ limitations under the License.
 
 #include "Delay.hpp"
 
+using poolqueue::Delay;
 using poolqueue::Promise;
 
 namespace {
@@ -118,7 +119,7 @@ namespace {
 
          // Notify outstanding entries of cancellation.
          for (auto& value : queue_)
-            value.second.reject(std::make_exception_ptr(std::runtime_error("Delay terminated")));
+            value.second.reject(std::make_exception_ptr(Delay::cancelled()));
       }
 
       static Pimpl& singleton() {
