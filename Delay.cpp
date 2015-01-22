@@ -107,6 +107,7 @@ namespace {
             std::vector<Promise> ready;
             const auto now = std::chrono::steady_clock::now();
             const auto upper = queue_.upper_bound(now);
+            ready.reserve(std::distance(queue_.begin(), upper));
             for (auto i = queue_.begin(); i != upper; ++i)
                ready.push_back(std::move(i->second));
             queue_.erase(queue_.begin(), upper);
