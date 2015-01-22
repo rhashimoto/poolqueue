@@ -137,9 +137,9 @@ poolqueue::Delay::cancel(const Promise& p, const std::exception_ptr& e) {
 }
 
 void
-poolqueue::Delay::createImpl(
-   const std::chrono::steady_clock::duration& duration,
-   const Promise& p) {
+poolqueue::Delay::schedule(
+   const Promise& p,
+   const std::chrono::steady_clock::duration& duration) {
    Pimpl& pimpl = Pimpl::singleton();
    pimpl.insert(duration, p);
 }

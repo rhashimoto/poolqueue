@@ -25,46 +25,52 @@ namespace poolqueue {
    // Enable timed callbacks.
    //
    // This class contains static member functions to create and cancel
-   // asynchronous one-shot delays using Promises.
+   // asynchronous one-shot delayed function calls using Promises.
    //
-   // Any outstanding Delay instances will be cancelled during static
-   // object destruction. This can result in undelivered exceptions
-   // if no reject handlers are attached.
+   // Any outstanding Delay instances will be cancelled when static
+   // object are destroyed after main() exits. This can result in
+   // undelivered exceptions if no reject handlers are attached.
    class Delay {
    public:
       struct cancelled : public std::exception {
       };
-      
+
       // Instantiate a delay.
+      // @f        A function/functor taking no arguments.
       // @duration Any std::chrono::duration, e.g. std::chrono::hours(2).
       //
       // This static function returns a Promise that will be resolved
-      // no sooner than the duration argument.
+      // with the result of calling f no sooner than the duration
+      // argument.
+      //
+      // The function f should not block or otherwise require significant
+      // time to run as this may cause other delayed calls to be later
+      // than expected.
       //
       // @return Promise resolved at expiration or rejected if cancelled.
-      template<typename T>
-      static Promise create(const T& duration) {
-         Promise p;
-         createImpl(std::chrono::duration_cast<std::chrono::steady_clock::duration>(duration), p);
+      template<typename F, typename T>
+      static Promise callAfter(F&& f, const T& duration) {
+         Promise p(std::forward<F>(f));
+         schedule(p, std::chrono::duration_cast<std::chrono::steady_clock::duration>(duration));
          return p;
       }
 
       // Cancel a delay.
-      // @p Promise previously returned by Delay::create().
+      // @p Promise previously returned by Delay::callAfter().
       // @e Exception to reject the Promise.
       //
       // This function cancels the delayed Promise returned by
-      // create(), returning true if successful. The Promise will be
-      // rejected with the optional exception_ptr argument, or
-      // Delay::cancelled if missing.
+      // callAfter(), returning true if successful. The Promise will
+      // be rejected with the optional exception_ptr argument, or
+      // Delay::cancelled if omitted.
       //
       // @return true if cancel was successful.
       static bool cancel(const Promise& p, const std::exception_ptr& e = std::make_exception_ptr(cancelled()));
          
    private:
-      static void createImpl(
-         const std::chrono::steady_clock::duration& duration,
-         const Promise& p);
+      static void schedule(
+         const Promise& p,
+         const std::chrono::steady_clock::duration& duration);
    };
 
 }
