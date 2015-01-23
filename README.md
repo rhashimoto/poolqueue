@@ -43,6 +43,7 @@ dependent `Promise` newly attached to an already settled `Promise`
 will be settled immediately.
 
 Example:
+
     #include <poolqueue/Promise.hpp>
     ...
     pq::Promise p;
