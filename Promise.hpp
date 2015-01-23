@@ -100,8 +100,9 @@ namespace poolqueue {
          static_assert(!std::is_same<typename std::decay<ResolveArgument>::type, std::exception_ptr>::value,
                        "onResolve callback cannot take a std::exception_ptr argument.");
          typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
-         static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value,
-                       "onReject callback must take a std::exception_ptr argument.");
+         static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value ||
+                       std::is_same<typename std::decay<RejectArgument>::type, void>::value,
+                       "onReject callback must take a void or std::exception_ptr argument.");
 
          constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
          constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;

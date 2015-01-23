@@ -281,7 +281,7 @@ BOOST_AUTO_TEST_CASE(basic) {
             BOOST_CHECK_EQUAL(value, 42);
             complete = true;
          },
-         [&](const std::exception_ptr& e) {
+         [&]() {
             BOOST_CHECK(false);
          });
 
