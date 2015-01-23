@@ -253,7 +253,7 @@ namespace {
          while (running) {
             // Attempt to run the next task from the queue.
             if (queue_.pop(f)) {
-               f.resolve();
+               f.fulfil();
             }
             else {
                // The queue was empty so we will wait for a condition
@@ -265,7 +265,7 @@ namespace {
                if (queue_.pop(f)) {
                   // Don't call user code with the lock.
                   lock.unlock();
-                  f.resolve();
+                  f.fulfil();
                }
 
                // The queue is now known to be empty.
@@ -360,7 +360,7 @@ struct poolqueue::ThreadPool::Strand::Pimpl {
    std::atomic<std::thread::id> currentId_;
 
    Pimpl() {
-        tail_.resolve();
+        tail_.fulfil();
    }
    
    template<typename F>
@@ -374,13 +374,13 @@ struct poolqueue::ThreadPool::Strand::Pimpl {
             ThreadPool::post([=]() {
                   // Set the thread id (for dispatch) and go.
                   self->currentId_ = std::this_thread::get_id();
-                  f.resolve();
+                  f.fulfil();
                   self->currentId_ = std::thread::id();
                }).close();
          }).close();
       tail_.close();
       
-      // Update the Promise that resolves on completion. The input
+      // Update the Promise that fulfils on completion. The input
       // Promise would work, except that it is returned to the user
       // who could close it. So instead we chain a dummy Promise.
       tail_ = f.then([](){});

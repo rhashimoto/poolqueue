@@ -52,7 +52,7 @@ namespace {
 
    // This is the handler called on a bad callback argument cast,
    // i.e. when the settled value on a Promise is incompatible with
-   // the onResolve argument. If the handler returns normally, the
+   // the onFulfil argument. If the handler returns normally, the
    // exception will be propagated along the Promise chain like any
    // other exception. The default handler throws because this is
    // typically a programming error.
@@ -71,7 +71,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::atomic<bool> settled_;
    std::atomic<bool> undeliveredException_;
    
-   std::unique_ptr<detail::CallbackWrapper> onResolve_;
+   std::unique_ptr<detail::CallbackWrapper> onFulfil_;
    std::unique_ptr<detail::CallbackWrapper> onReject_;
    
    Pimpl()
@@ -123,10 +123,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          // A mismatch would eventually be found in propagation but
          // it is much easier to debug when found during attachment.
          const std::type_info& oType =
-            onResolve_ ? onResolve_->resultType() :
+            onFulfil_ ? onFulfil_->resultType() :
             (onReject_ ? onReject_->resultType() : typeid(detail::Any));
          const std::type_info& iType =
-            next->onResolve_ ? next->onResolve_->argumentType() : typeid(void);
+            next->onFulfil_ ? next->onFulfil_->argumentType() : typeid(void);
          if (oType != iType &&
              oType != typeid(detail::Any) && oType != typeid(Promise) &&
              iType != typeid(void)) {
@@ -141,14 +141,14 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
                undeliveredException_.store(false, std::memory_order_relaxed);
          }
 
-         // A Promise is closed once an onResolve callback with an rvalue
+         // A Promise is closed once an onFulfil callback with an rvalue
          // reference argument has been added because that callback can
          // steal (i.e. move) the value.
          //
          // Storing to the atomic closed_ has release semantics so
          // settle() can access downstream_ without taking a lock as
          // long as it reads closed_ with acquire semantics.
-         if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
+         if (next->onFulfil_ && next->onFulfil_->hasRvalueArgument())
             closed_ = true;
       }
 
@@ -170,13 +170,13 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    void settle(Value&& value) {
       // Pass value through appropriate callback if present.
       Value cbValue{Unset()};
-      if (onResolve_ && value.type() != typeid(std::exception_ptr)) {
+      if (onFulfil_ && value.type() != typeid(std::exception_ptr)) {
          try {
-            cbValue = (*onResolve_)(std::move(value));
+            cbValue = (*onFulfil_)(std::move(value));
          }
          catch (const bad_cast& e) {
             // The type contained in the Value does not match the
-            // type the onResolve callback accepts, so this is a
+            // type the onFulfil callback accepts, so this is a
             // user code error.
             if (badCastHandler)
                badCastHandler(e);
@@ -198,7 +198,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       }
 
       // Discard callbacks so they cannot be used again.
-      onResolve_.reset();
+      onFulfil_.reset();
       onReject_.reset();
       
       if (cbValue.type() != typeid(Promise)) {
@@ -262,9 +262,9 @@ poolqueue::Promise::Promise()
    static_assert(std::is_nothrow_move_assignable<Promise>::value, "noexcept assign");
 }
 
-poolqueue::Promise::Promise(detail::CallbackWrapper *onResolve, detail::CallbackWrapper *onReject)
+poolqueue::Promise::Promise(detail::CallbackWrapper *onFulfil, detail::CallbackWrapper *onReject)
    : pimpl(std::make_shared<Pimpl>()) {
-   pimpl->onResolve_.reset(onResolve);
+   pimpl->onFulfil_.reset(onFulfil);
    pimpl->onReject_.reset(onReject);
 }
 

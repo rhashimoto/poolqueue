@@ -74,7 +74,7 @@ namespace poolqueue {
             Holder *copy() const {
                // Copying a Promise::Value is necessary if a then()
                // or except() callback returns a Promise. When the
-               // returned Promise is resolved, the value set must
+               // returned Promise is fulfilled, the value set must
                // be copy-constructible. Noncopyable values can be
                // used in all other known internal cases.
                throw std::runtime_error("Promise contains noncopyable value");
@@ -470,7 +470,7 @@ namespace poolqueue {
          return new CallbackWrapperT<F, typename std::decay<R>::type, A, isValue>(std::forward<F>(f));
       }
 
-      struct NullResolve {
+      struct NullFulfil {
          void operator()() const {
          }
       };

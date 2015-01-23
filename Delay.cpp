@@ -115,7 +115,7 @@ namespace {
             // Execute the callbacks outside the lock.
             lock.unlock();
             for (auto& p : ready)
-               p.resolve();
+               p.fulfil();
          }
 
          // Notify outstanding entries of cancellation.

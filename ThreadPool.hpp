@@ -33,7 +33,7 @@ namespace poolqueue {
       // @f Function or functor to run.
       //
       // This static method enqueues a function to execute
-      // asynchronously. A Promise is returned that either resolves
+      // asynchronously. A Promise is returned that either fulfils
       // with the value returned by the function or rejects with the
       // exception thrown by the function.
       //
@@ -43,7 +43,7 @@ namespace poolqueue {
       // .then()/.except(), the continuations will execute
       // synchronously.
       //
-      // @return Promise that resolves or rejects with the outcome
+      // @return Promise that fulfils or rejects with the outcome
       //         of the function argument.
       template<typename F>
       static Promise post(F&& f) {
@@ -62,7 +62,7 @@ namespace poolqueue {
       // Execute a function synchronously if currently running in a
       // ThreadPool thread, otherwise, post it.
       //
-      // @return Promise that resolves or rejects with the outcome
+      // @return Promise that fulfils or rejects with the outcome
       //         of the function argument.
       template<typename F>
       static Promise dispatch(F&& f) {
@@ -146,7 +146,7 @@ namespace poolqueue {
          // This methods works similarly to ThreadPool::post()
          // except execution must obey the Strand guarantees.
          //
-         // @return Promise that resolves or rejects with the outcome
+         // @return Promise that fulfils or rejects with the outcome
          //         of the function argument.
          template<typename F>
          Promise post(F&& f) {
@@ -165,7 +165,7 @@ namespace poolqueue {
          // This methods works similarly to ThreadPool::dispatch()
          // except execution must obey the Strand guarantees.
          //
-         // @return Promise that resolves or rejects with the outcome
+         // @return Promise that fulfils or rejects with the outcome
          //         of the function argument.
          template<typename F>
          Promise dispatch(F&& f) {
@@ -174,7 +174,7 @@ namespace poolqueue {
                           "function must take no argument");
 
             if (std::this_thread::get_id() == currentId())
-               return Promise().resolve().then(std::forward<F>(f));
+               return Promise().fulfil().then(std::forward<F>(f));
             else
                return post(std::forward<F>(f));
          }

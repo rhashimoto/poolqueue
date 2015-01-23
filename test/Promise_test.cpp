@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(basic) {
       Promise p;
       BOOST_CHECK(!p.settled());
    
-      p.resolve(42);
+      p.fulfil(42);
       BOOST_CHECK(p.settled());
    }
 
@@ -270,7 +270,7 @@ BOOST_AUTO_TEST_CASE(basic) {
 
       BOOST_CHECK(!complete);
 
-      p.resolve(42);
+      p.fulfill(42);
       BOOST_CHECK(complete);
    }
 
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(basic) {
 
       BOOST_CHECK(!complete);
 
-      p.resolve(42);
+      p.fulfil(42);
       BOOST_CHECK(complete);
    }
 
@@ -316,7 +316,7 @@ static void then_function() {
 
 BOOST_AUTO_TEST_CASE(basic_then) {
    Promise p;
-   p.resolve(42);
+   p.fulfil(42);
    
    int coverage = 0;
    p.then([&](int) {
@@ -349,7 +349,7 @@ BOOST_AUTO_TEST_CASE(basic_then) {
       });
 
    BOOST_CHECK_THROW(p.then([](float) {}), std::bad_cast);
-   BOOST_CHECK_THROW(p.resolve(0), std::logic_error);
+   BOOST_CHECK_THROW(p.fulfil(0), std::logic_error);
 }
 
 static bool exceptCalled = false;
@@ -359,7 +359,7 @@ static void except_function(const std::exception_ptr&) {
 
 BOOST_AUTO_TEST_CASE(basic_except) {
    Promise p([]() { throw 0; });
-   p.resolve();
+   p.fulfil();
    
    int coverage = 0;
    p.except([&](const std::exception_ptr&) {
@@ -393,11 +393,11 @@ BOOST_AUTO_TEST_CASE(biway_then) {
    {
       Promise p;
 
-      bool resolved = false;
+      bool fulfilled = false;
       bool rejected = false;
       Promise q = p.then(
          [&](int i) {
-            resolved = true;
+            fulfilled = true;
             return i;
          },
          [&](const std::exception_ptr&) {
@@ -411,8 +411,8 @@ BOOST_AUTO_TEST_CASE(biway_then) {
             BOOST_CHECK_EQUAL(i, 42);
          });
 
-      p.resolve(42);
-      BOOST_CHECK(resolved);
+      p.fulfil(42);
+      BOOST_CHECK(fulfilled);
       BOOST_CHECK(!rejected);
       BOOST_CHECK(done);
    }
@@ -454,7 +454,7 @@ BOOST_AUTO_TEST_CASE(chain) {
    BOOST_CHECK(!tail.settled());
    BOOST_CHECK_EQUAL(coverage, 0);
 
-   p.resolve(0);
+   p.fulfil(0);
    BOOST_CHECK(tail.settled());
    BOOST_CHECK_EQUAL(coverage, 4);
 }
@@ -463,7 +463,7 @@ BOOST_AUTO_TEST_CASE(subpromise) {
    Promise inner;
 
    int coverage = 0;
-   Promise().resolve(0)
+   Promise().fulfil(0)
       .then([&](int i) {
             BOOST_CHECK_EQUAL(i, 0);
             ++coverage;
@@ -488,7 +488,7 @@ BOOST_AUTO_TEST_CASE(subpromise) {
    // Second then callback waiting on inner promise.
    BOOST_CHECK_EQUAL(coverage, 1);
 
-   inner.resolve(1);
+   inner.fulfil(1);
    BOOST_CHECK_EQUAL(coverage, 4);
 }
 
@@ -537,7 +537,7 @@ BOOST_AUTO_TEST_CASE(rvalue) {
 
    // Verify that no accidental copies are made.
    int coverage = 0;
-   Promise().resolve(NonCopyable())
+   Promise().fulfil(NonCopyable())
       .then([&](NonCopyable&& arg) {
             ++coverage;
             return NonCopyable(std::move(arg));
@@ -575,7 +575,7 @@ BOOST_AUTO_TEST_CASE(all) {
          });
 
       for (size_t i = 0; i < v.size(); ++i)
-         v[i].resolve(i);
+         v[i].fulfil(i);
 
       BOOST_CHECK_EQUAL(complete, v.size());
    }
@@ -597,7 +597,7 @@ BOOST_AUTO_TEST_CASE(all) {
          });
 
       for (size_t i = 0; i < v.size(); ++i) {
-         v[i].resolve(i);
+         v[i].fulfil(i);
          if (i + 1 < v.size())
             BOOST_CHECK(!all.settled());
          else
@@ -624,7 +624,7 @@ BOOST_AUTO_TEST_CASE(all) {
          });
 
       for (size_t i = 1; i < v.size(); ++i)
-         v[i].resolve(i);
+         v[i].fulfil(i);
       BOOST_CHECK(!all.settled());
       
       v[0].reject(std::make_exception_ptr(std::runtime_error("foo")));
@@ -656,13 +656,13 @@ BOOST_AUTO_TEST_CASE(all) {
                });
          });
 
-      p0.resolve(0);
+      p0.fulfil(0);
       BOOST_CHECK_EQUAL(complete, 0);
-      p1.resolve(1);
+      p1.fulfil(1);
       BOOST_CHECK_EQUAL(complete, 0);
-      p2.resolve(2);
+      p2.fulfil(2);
       BOOST_CHECK_EQUAL(complete, 0);
-      p3.resolve(3);
+      p3.fulfil(3);
       BOOST_CHECK_EQUAL(complete, 4);
    }
 }

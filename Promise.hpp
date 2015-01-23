@@ -49,7 +49,7 @@ namespace poolqueue {
       //
       // This creates a new instance that is not attached to any other
       // instance. A non-dependent Promise should be settled by
-      // calling <resolve> or <reject>.
+      // calling <fulfil> or <reject>.
       Promise();
 
       // Copy constructor.
@@ -71,71 +71,82 @@ namespace poolqueue {
       Promise& operator=(Promise&&) = default;
 
       // Construct a non-dependent Promise with callbacks.
-      // @onResolve Function/functor to be called if the Promise is resolved.
-      //            onResolve may take a single argument by value, const
+      // @onFulfil Function/functor to be called if the Promise is fulfilled.
+      //            onFulfil may take a single argument by value, const
       //            reference, or rvalue reference. In the case of an
       //            rvalue reference argument, the Promise will be closed
-      //            to additional callbacks. onResolve may return a value.
+      //            to additional callbacks. onFulfil may return a value.
       // @onReject  Optional function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
       //            const std::exception_ptr& and may return a value.
       //
       // This creates a new instance that is not attached to any other
       // instance. A default constructed Promise should be settled by
-      // calling <resolve> or <reject>.
+      // calling <fulfil> or <reject>.
       //
       // When the instance is settled, the appropriate callback argument
       // will be called.
-      template<typename Resolve, typename Reject = detail::NullReject,
-               typename = typename std::enable_if<!std::is_same<typename std::decay<Resolve>::type, Promise>::value>::type>
-      Promise(Resolve&& onResolve, Reject&& onReject = Reject())
+      template<typename Fulfil, typename Reject = detail::NullReject,
+               typename = typename std::enable_if<!std::is_same<typename std::decay<Fulfil>::type, Promise>::value>::type>
+      Promise(Fulfil&& onFulfil, Reject&& onReject = Reject())
          : Promise(
-            !std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value ?
-            detail::makeCallbackWrapper(std::forward<Resolve>(onResolve)) :
+            !std::is_same<typename std::decay<Fulfil>::type, detail::NullFulfil>::value ?
+            detail::makeCallbackWrapper(std::forward<Fulfil>(onFulfil)) :
             static_cast<detail::CallbackWrapper *>(nullptr),
             !std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value ?            
             detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
             static_cast<detail::CallbackWrapper *>(nullptr)) {
-         typedef typename detail::CallableTraits<Resolve>::ArgumentType ResolveArgument;
-         static_assert(!std::is_same<typename std::decay<ResolveArgument>::type, std::exception_ptr>::value,
-                       "onResolve callback cannot take a std::exception_ptr argument.");
+         typedef typename detail::CallableTraits<Fulfil>::ArgumentType FulfilArgument;
+         static_assert(!std::is_same<typename std::decay<FulfilArgument>::type, std::exception_ptr>::value,
+                       "onFulfil callback cannot take a std::exception_ptr argument.");
          typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;
          static_assert(std::is_same<typename std::decay<RejectArgument>::type, std::exception_ptr>::value ||
                        std::is_same<typename std::decay<RejectArgument>::type, void>::value,
                        "onReject callback must take a void or std::exception_ptr argument.");
 
-         constexpr bool isResolveNull = std::is_same<typename std::decay<Resolve>::type, detail::NullResolve>::value;
+         constexpr bool isFulfilNull = std::is_same<typename std::decay<Fulfil>::type, detail::NullFulfil>::value;
          constexpr bool isRejectNull = std::is_same<typename std::decay<Reject>::type, detail::NullReject>::value;
-         typedef typename detail::CallableTraits<Resolve>::ResultType ResolveResult;
+         typedef typename detail::CallableTraits<Fulfil>::ResultType FulfilResult;
          typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
-         static_assert(isResolveNull || isRejectNull ||
-                       std::is_same<ResolveResult, RejectResult>::value,
-                       "onResolve and onReject return types must match");
+         static_assert(isFulfilNull || isRejectNull ||
+                       std::is_same<FulfilResult, RejectResult>::value,
+                       "onFulfil and onReject return types must match");
       }
 
       ~Promise() noexcept;
          
-      // Resolve a non-dependent Promise with a value.
+      // Fulfil a non-dependent Promise with a value.
       // @value Copyable or Movable value.
       //
-      // @return *this to allow return Promise().resolve(value);
+      // @return *this to allow return Promise().fulfil(value);
       template<typename T>
-      const Promise& resolve(T&& value) const {
+      const Promise& fulfil(T&& value) const {
          static_assert(
             !std::is_same<T, std::exception_ptr>::value,
-            "std::exception_ptr argument invalid for resolve()");
+            "std::exception_ptr argument invalid for fulfil()");
          settle(Value(std::forward<T>(value)));
          return *this;
       }
 
-      // Resolve a non-dependent Promise with no value.
+      // Fulfil a non-dependent Promise with no value.
       //
-      // @return *this to allow return Promise().resolve(value);
-      const Promise& resolve() const {
+      // @return *this to allow return Promise().fulfil(value);
+      const Promise& fulfil() const {
          settle(Value());
          return *this;
       }
 
+      // Alternative US fulfil spelling.
+      template<typename T>
+      const Promise& fulfill(T&& value) const {
+         return fulfil(std::forward<T>(value));
+      }
+
+      // Alternative US fulfil spelling.
+      const Promise& fulfill() const {
+         return fulfil();
+      }
+      
       // Reject a non-dependent Promise.
       // @error Exception pointer, e.g. from std::make_exception_ptr().
       //
@@ -145,12 +156,12 @@ namespace poolqueue {
          return *this;
       }
 
-      // Attach resolve/reject callbacks.
-      // @onResolve Function/functor to be called if the Promise is resolved.
-      //            onResolve may take a single argument by value, const
+      // Attach fulfil/reject callbacks.
+      // @onFulfil Function/functor to be called if the Promise is fulfilled.
+      //            onFulfil may take a single argument by value, const
       //            reference, or rvalue reference. In the case of an
       //            rvalue reference argument, the Promise will be closed
-      //            to additional callbacks. onResolve may return a value.
+      //            to additional callbacks. onFulfil may return a value.
       // @onReject  Optional function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
       //            const std::exception_ptr& and may return a value. 
@@ -160,22 +171,22 @@ namespace poolqueue {
       // matching callback. At most one of the callbacks will be invoked,
       // never both.
       //
-      // If the executed callback returns a value that is not a Promise,
-      // the Promise returned by then is resolved with that value. If the
-      // the executed callback throws an exception, the Promise returned
-      // by then() is rejected with that exception.
+      // If the executed callback returns a value that is not a
+      // Promise, the Promise returned by then is fulfilled with that
+      // value. If the the executed callback throws an exception, the
+      // Promise returned by then() is rejected with that exception.
       //
       // If the executed callback returns a Promise q, the Promise p
       // returned by then() will receive q's value or error (which may
       // not happen immediately).
       //
       // @return Dependent Promise to receive the eventual result.
-      template<typename Resolve, typename Reject = detail::NullReject >
-      Promise then(Resolve&& onResolve, Reject&& onReject = Reject()) const {
+      template<typename Fulfil, typename Reject = detail::NullReject >
+      Promise then(Fulfil&& onFulfil, Reject&& onReject = Reject()) const {
          if (closed())
             throw std::logic_error("Promise is closed");
          
-         Promise next(std::forward<Resolve>(onResolve), std::forward<Reject>(onReject));
+         Promise next(std::forward<Fulfil>(onFulfil), std::forward<Reject>(onReject));
          attach(next);
          return next;
       }
@@ -191,7 +202,7 @@ namespace poolqueue {
       // @return Dependent Promise to receive the eventual result.
       template<typename Reject>
       Promise except(Reject&& onReject) const {
-         return then(detail::NullResolve(), std::forward<Reject>(onReject));
+         return then(detail::NullFulfil(), std::forward<Reject>(onReject));
       }
 
       // Disallow future then/except calls.
@@ -205,7 +216,7 @@ namespace poolqueue {
       
       // Get the settled state.
       //
-      // A Promise is settled when it has been either resolved or
+      // A Promise is settled when it has been either fulfilled or
       // rejected.
       //
       // @return true if settled.
@@ -214,7 +225,7 @@ namespace poolqueue {
       // Get the closed state.
       //
       // A Promise is closed when either (1) its close() method has
-      // been called or (2) an onResolve callback that takes an rvalue
+      // been called or (2) an onFulfil callback that takes an rvalue
       // reference argument has been attached with then().  No
       // additional callbacks can be added to a closed Promise (i.e.
       // calls to then() or except() will throw an exception).
@@ -226,14 +237,14 @@ namespace poolqueue {
       // @bgn Begin iterator.
       // @end End iterator.
       //
-      // This static function returns a Promise that resolves when
-      // all of the Promises in the input range resolve, or rejects
+      // This static function returns a Promise that fulfils when
+      // all of the Promises in the input range fulfil, or rejects
       // when any of the Promises in the input range reject.
       //
-      // If the returned Promise resolves, no value is passed. Values
+      // If the returned Promise fulfils, no value is passed. Values
       // can be collected from the input Promises.
       //
-      // @return Dependent Promise that resolves on all or rejects on
+      // @return Dependent Promise that fulfils on all or rejects on
       //         any.
       template<typename Iterator>
       static Promise all(Iterator bgn, Iterator end) {
@@ -245,7 +256,7 @@ namespace poolqueue {
                i->then(
                   [=]() {
                      if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
-                        p.resolve();
+                        p.fulfil();
                      }
                   },
                   [=](const std::exception_ptr& e) {
@@ -255,8 +266,8 @@ namespace poolqueue {
             }
          }
          else {
-            // Range is empty so resolve immediately.
-            p.resolve();
+            // Range is empty so fulfil immediately.
+            p.fulfil();
          }
             
          return p;
@@ -265,14 +276,14 @@ namespace poolqueue {
       // Promise conjunction on initializer list.
       // @promises Input promises.
       //
-      // This static function returns a Promise that resolves when
-      // all of the Promises in the input list resolve, or rejects
+      // This static function returns a Promise that fulfils when
+      // all of the Promises in the input list fulfil, or rejects
       // when any of the Promises in the input list reject.
       //
-      // If the returned Promise resolves, no value is passed. Values
+      // If the returned Promise fulfils, no value is passed. Values
       // can be collected from the input Promises.
       //
-      // @return Dependent Promise that resolves on all or rejects on
+      // @return Dependent Promise that fulfils on all or rejects on
       //         any.
       static Promise all(std::initializer_list<Promise> promises) {
          return all(promises.begin(), promises.end());
@@ -288,6 +299,8 @@ namespace poolqueue {
       //
       // Note that the handler is called from the Promise destructor
       // so the handler should not throw.
+      //
+      // @return Copy of the previous handler.
       typedef std::function<void(const std::exception_ptr&)> ExceptionHandler;
       static ExceptionHandler setUndeliveredExceptionHandler(const ExceptionHandler& handler);
 
@@ -295,7 +308,7 @@ namespace poolqueue {
       // @handler Has signature void handler(const Promise::bad_cast&).
       //
       // If the upstream value does not match the argument of an
-      // onResolve callback a Promise::bad_cast exception is
+      // onFulfil callback a Promise::bad_cast exception is
       // thrown. This mismatch between output and input is usually
       // a programming error, so the default action is to let this
       // exception propagate in the normal manner (i.e. unwind the
@@ -305,6 +318,8 @@ namespace poolqueue {
       // If a different behavior is desired, the default handler
       // can be replaced. If the replacement handler does not throw
       // then the exception will be captured.
+      //
+      // @return Copy of the previous handler.
       typedef std::function<void(const Promise::bad_cast&)> BadCastHandler;
       static BadCastHandler setBadCastExceptionHandler(const BadCastHandler& handler);
          

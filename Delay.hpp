@@ -39,7 +39,7 @@ namespace poolqueue {
       // @f        A function/functor taking no arguments.
       // @duration Any std::chrono::duration, e.g. std::chrono::hours(2).
       //
-      // This static function returns a Promise that will be resolved
+      // This static function returns a Promise that will be fulfilld
       // with the result of calling f no sooner than the duration
       // argument.
       //
@@ -47,7 +47,7 @@ namespace poolqueue {
       // time to run as this may cause other delayed calls to be later
       // than expected.
       //
-      // @return Promise resolved at expiration or rejected if cancelled.
+      // @return Promise fulfilled at expiration or rejected if cancelled.
       template<typename F, typename T>
       static Promise callAfter(F&& f, const T& duration) {
          Promise p(std::forward<F>(f));
