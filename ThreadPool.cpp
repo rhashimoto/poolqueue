@@ -253,7 +253,7 @@ namespace {
          while (running) {
             // Attempt to run the next task from the queue.
             if (queue_.pop(f)) {
-               f.fulfil();
+               f.settle();
             }
             else {
                // The queue was empty so we will wait for a condition
@@ -265,7 +265,7 @@ namespace {
                if (queue_.pop(f)) {
                   // Don't call user code with the lock.
                   lock.unlock();
-                  f.fulfil();
+                  f.settle();
                }
 
                // The queue is now known to be empty.
@@ -360,7 +360,7 @@ struct poolqueue::ThreadPool::Strand::Pimpl {
    std::atomic<std::thread::id> currentId_;
 
    Pimpl() {
-        tail_.fulfil();
+        tail_.settle();
    }
    
    template<typename F>
@@ -374,7 +374,7 @@ struct poolqueue::ThreadPool::Strand::Pimpl {
             ThreadPool::post([=]() {
                   // Set the thread id (for dispatch) and go.
                   self->currentId_ = std::this_thread::get_id();
-                  f.fulfil();
+                  f.settle();
                   self->currentId_ = std::thread::id();
                }).close();
          }).close();

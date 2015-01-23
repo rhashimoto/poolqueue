@@ -90,7 +90,7 @@ namespace {
             }
          }
 
-         target.reject(e);
+         target.settle(e);
          return result;
       }
       
@@ -115,12 +115,12 @@ namespace {
             // Execute the callbacks outside the lock.
             lock.unlock();
             for (auto& p : ready)
-               p.fulfil();
+               p.settle();
          }
 
          // Notify outstanding entries of cancellation.
          for (auto& value : queue_)
-            value.second.reject(std::make_exception_ptr(Delay::cancelled()));
+            value.second.settle(std::make_exception_ptr(Delay::cancelled()));
       }
 
       static Pimpl& singleton() {

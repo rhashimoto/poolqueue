@@ -174,7 +174,7 @@ namespace poolqueue {
                           "function must take no argument");
 
             if (std::this_thread::get_id() == currentId())
-               return Promise().fulfil().then(std::forward<F>(f));
+               return Promise().settle().then(std::forward<F>(f));
             else
                return post(std::forward<F>(f));
          }

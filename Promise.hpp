@@ -48,8 +48,7 @@ namespace poolqueue {
       // Construct a non-dependent Promise.
       //
       // This creates a new instance that is not attached to any other
-      // instance. A non-dependent Promise should be settled by
-      // calling <fulfil> or <reject>.
+      // instance.
       Promise();
 
       // Copy constructor.
@@ -81,11 +80,8 @@ namespace poolqueue {
       //            const std::exception_ptr& and may return a value.
       //
       // This creates a new instance that is not attached to any other
-      // instance. A default constructed Promise should be settled by
-      // calling <fulfil> or <reject>.
-      //
-      // When the instance is settled, the appropriate callback argument
-      // will be called.
+      // instance.  When the instance is settled, the appropriate
+      // callback argument will be called.
       template<typename Fulfil, typename Reject = detail::NullReject,
                typename = typename std::enable_if<!std::is_same<typename std::decay<Fulfil>::type, Promise>::value>::type>
       Promise(Fulfil&& onFulfil, Reject&& onReject = Reject())
@@ -114,48 +110,25 @@ namespace poolqueue {
       }
 
       ~Promise() noexcept;
-         
-      // Fulfil a non-dependent Promise with a value.
+
+      // Settle a non-dependent Promise with a value.
       // @value Copyable or Movable value.
       //
-      // @return *this to allow return Promise().fulfil(value);
+      // @return *this to allow return Promise().settle(value);
       template<typename T>
-      const Promise& fulfil(T&& value) const {
-         static_assert(
-            !std::is_same<T, std::exception_ptr>::value,
-            "std::exception_ptr argument invalid for fulfil()");
+      const Promise& settle(T&& value) const {
          settle(Value(std::forward<T>(value)));
          return *this;
       }
-
-      // Fulfil a non-dependent Promise with no value.
+      
+      // Settle a non-dependent Promise with an empty value.
       //
-      // @return *this to allow return Promise().fulfil(value);
-      const Promise& fulfil() const {
+      // @return *this to allow return Promise().settle();
+      const Promise& settle() const {
          settle(Value());
          return *this;
       }
-
-      // Alternative US fulfil spelling.
-      template<typename T>
-      const Promise& fulfill(T&& value) const {
-         return fulfil(std::forward<T>(value));
-      }
-
-      // Alternative US fulfil spelling.
-      const Promise& fulfill() const {
-         return fulfil();
-      }
       
-      // Reject a non-dependent Promise.
-      // @error Exception pointer, e.g. from std::make_exception_ptr().
-      //
-      // @return *this to allow return Promise().reject(error);
-      const Promise& reject(const std::exception_ptr& error) const {
-         settle(Value(error));
-         return *this;
-      }
-
       // Attach fulfil/reject callbacks.
       // @onFulfil Function/functor to be called if the Promise is fulfilled.
       //            onFulfil may take a single argument by value, const
@@ -256,18 +229,18 @@ namespace poolqueue {
                i->then(
                   [=]() {
                      if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
-                        p.fulfil();
+                        p.settle();
                      }
                   },
                   [=](const std::exception_ptr& e) {
                      if (!rejected->exchange(true, std::memory_order_relaxed))
-                        p.reject(e);
+                        p.settle(e);
                   });
             }
          }
          else {
             // Range is empty so fulfil immediately.
-            p.fulfil();
+            p.settle();
          }
             
          return p;
