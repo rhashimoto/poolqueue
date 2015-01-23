@@ -12,12 +12,13 @@ BUILT_SOURCES = poolqueue
 poolqueue:
 	$(LN_S) $(top_srcdir) poolqueue
 
-EXTRA_PROGRAMS = Promise_basics Promise_chain Promise_sub
+EXTRA_PROGRAMS = Promise_basics Promise_chain Promise_sub Promise_close
 CLEANFILES = $(EXTRA_PROGRAMS)
 
 Promise_basics_SOURCES = Promise_basics.cpp
 Promise_chain_SOURCES = Promise_chain.cpp
 Promise_sub_SOURCES = Promise_sub.cpp
+Promise_close_SOURCES = Promise_close.cpp
 
 .PHONY: examples
 examples: $(EXTRA_PROGRAMS)

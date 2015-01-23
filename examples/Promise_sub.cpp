@@ -1,7 +1,6 @@
 #include <atomic>
 #include <cassert>
 #include <iostream>
-#include <thread>
 
 #include <poolqueue/Promise.hpp>
 
