@@ -69,9 +69,9 @@ settled.
 
 Additional example code is under examples/:
 
-* [Basic `Promise` usage]()
-* [Chaining `Promise`s]()
-* [Callback returning a `Promise`]()
+* [Basic `Promise` usage](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_basics.cpp)
+* [Chaining `Promise`s](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_chain.cpp)
+* [Callback returning a `Promise`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_sub.cpp)
 
 ## Promise details
 A PoolQueue `Promise` holds a shared pointer to its state. Copying a
