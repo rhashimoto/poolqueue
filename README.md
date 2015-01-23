@@ -49,10 +49,16 @@ Example:
     pq::Promise p;
     p.then(
       [](const std::string& s) {
-        std::cout << "Fulfilled with " << s << '\n';
+        std::cout << "fulfilled with " << s << '\n';
       },
       [](const std::exception_ptr& e) {
-        std::cout << "Rejected with " << e.what() << '\n';
+        try {
+          if (e)
+            std::rethrow_exception(e);
+        }
+        catch (const std::exception& e) {
+          std::cout << "rejected with " << e.what() << '\n';
+        }
       });
     ...
     // possibly in another thread
@@ -60,6 +66,12 @@ Example:
 
 The lambdas attached with `then()` are deferred until the `Promise` is
 settled.
+
+Additional example code is under examples/:
+
+* [Basic `Promise` usage]()
+* [Chaining `Promise`s]()
+* [Callback returning a `Promise`]()
 
 ## Promise details
 A PoolQueue `Promise` holds a shared pointer to its state. Copying a
