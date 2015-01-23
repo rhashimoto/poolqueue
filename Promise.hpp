@@ -268,7 +268,7 @@ namespace poolqueue {
       // Callback exceptions that are never delivered to an
       // onReject callback are passed to a global handler that can
       // be set with this function. A copy of the previous handler
-      // is returned. The default handler calls std::abort().
+      // is returned. The default handler calls std::unexpected().
       //
       // Note that the handler is called from the Promise destructor
       // so the handler should not throw.
