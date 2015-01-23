@@ -30,10 +30,14 @@ namespace {
    };
 
    // This is the handler called when a Promise is destroyed and it
-   // contains an undelivered exception.
+   // contains an undelivered exception. There is nothing technically
+   // wrong with discarding an undelivered exception but it is much
+   // harder to figure out certain bugs. The default handler thus
+   // aborts.
    Promise::ExceptionHandler undeliveredExceptionHandler = [](const std::exception_ptr& e) {
       try {
-         std::rethrow_exception(e);
+         if (e)
+            std::rethrow_exception(e);
       }
       catch (const std::exception& e) {
          std::cerr << e.what() << '\n';
@@ -47,7 +51,12 @@ namespace {
       std::abort();
    };
 
-   // This is the handler called on a bad callback argument cast.
+   // This is the handler called on a bad callback argument cast,
+   // i.e. when the settled value on a Promise is incompatible with
+   // the onResolve argument. If the handler returns normally, the
+   // exception will be propagated along the Promise chain like any
+   // other exception. The default handler throws because this is
+   // typically a programming error.
    Promise::BadCastHandler badCastHandler = [](const Promise::bad_cast& e) {
       throw e;
    };
@@ -55,7 +64,7 @@ namespace {
 
 struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::mutex mutex_;
-   std::weak_ptr<Pimpl> upstream_;
+   Pimpl *upstream_;
    std::vector<std::shared_ptr<Pimpl> > downstream_;
 
    Value value_;
@@ -67,7 +76,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    std::unique_ptr<detail::CallbackWrapper> onReject_;
    
    Pimpl()
-      : value_(Unset())
+      : upstream_(nullptr)
+      , value_(Unset())
       , closed_(false)
       , settled_(false)
       , undeliveredException_(false) {
@@ -76,7 +86,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    Pimpl(const Pimpl& other) = delete;
 
    ~Pimpl() {
-      // Handle undelivered exceptions.
+      // Pass undelivered exceptions to the handler.
       if (undeliveredException_.load(std::memory_order_relaxed) && undeliveredExceptionHandler) {
          std::lock_guard<decltype(mutex_)> lock(mutex_);
          undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
@@ -97,11 +107,33 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    // Attach a downstream promise.
    void link(const std::shared_ptr<Pimpl>& next) {
-      next->upstream_ = shared_from_this();
+      next->upstream_ = this;
 
       decltype(downstream_) targets;
       {
          std::lock_guard<decltype(mutex_)> lock(mutex_);
+
+         // Check type match between upstream callback result and
+         // downstream callback argument. This check is inconclusive
+         // if:
+         //
+         // - Callbacks are not present.
+         // - Upstream result type is Any or Promise.
+         // - Downstream argument type is void.
+         //
+         // A mismatch would eventually be found in propagation but
+         // it is much easier to debug when found during attachment.
+         const std::type_info& oType =
+            onResolve_ ? onResolve_->resultType() :
+            (onReject_ ? onReject_->resultType() : typeid(detail::Any));
+         const std::type_info& iType =
+            next->onResolve_ ? next->onResolve_->argumentType() : typeid(void);
+         if (otype != iType &&
+             oType != typeid(detail::Any) && oType != typeid(Promise) &&
+             iType != typeid(void)) {
+            throw std::logic_error(std::string("type mismatch: ") + oType.name() + " -> "  + iType.name());
+         }
+         
          downstream_.push_back(next);
          if (value_.type() != typeid(Unset)) {
             targets.swap(downstream_);
@@ -116,13 +148,15 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          //
          // Storing to the atomic closed_ has release semantics so
          // settle() can access downstream_ without taking a lock as
-         // long as it reads closed_.
+         // long as it reads closed_ with acquire semantics.
          if (next->onResolve_ && next->onResolve_->hasRvalueArgument())
             closed_ = true;
       }
 
-      if (!targets.empty())
+      if (!targets.empty()) {
+         assert(targets.size() == 1 && targets.front() == next);
          propagate(targets);
+      }
    }
 
    // Push value downstream.
@@ -151,6 +185,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
             cbValue = std::current_exception();
          }
          catch (...) {
+            // All other exceptions are propagated downstream.
             cbValue = std::current_exception();
          }
       }
@@ -174,22 +209,23 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          assert(value_.type() == typeid(Unset));
          if (cbValue.type() != typeid(Unset))
             value_.swap(cbValue);
-         else if (upstream_.lock())
+         else if (upstream_)
             value_ = value;
          else
             value_.swap(value);
 
          // Local update is complete.
          settled_.store(true, std::memory_order_relaxed);
-         upstream_.reset();
+         upstream_ = nullptr;
 
          const bool closed = closed_;
          decltype(downstream_) targets;
          {
             // Access to downstream_ is exclusive when closed so the
-            // lock can be avoided in that state. When not closed
-            // there is a possible race with link() so the lock is
-            // required.
+            // lock can be avoided in that state (testing closed_ has
+            // acquire semantics so downstream_ is valid). When not
+            // closed there is a possible race with link() so the lock
+            // is required.
             std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
             if (!closed)
                lock.lock();
@@ -204,8 +240,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
             // The value contains an undelivered exception. If it
             // remains undelivered at destruction then the handler
             // will be called, potentially in a different thread. We
-            // ensure that the value will be valid there using release
-            // semantics if the lock was not used.
+            // ensure that the value will be valid there by specifying
+            // release semantics if the lock was not used.
             undeliveredException_.store(
                true,
                closed ? std::memory_order_release : std::memory_order_relaxed);
@@ -268,7 +304,7 @@ void
 poolqueue::Promise::settle(Value&& value) const {
    if (pimpl->settled())
       throw std::logic_error("Promise already settled");
-   if (pimpl->upstream_.lock())
+   if (pimpl->upstream_)
       throw std::logic_error("invalid operation on dependent Promise");
    pimpl->settle(std::move(value));
 }

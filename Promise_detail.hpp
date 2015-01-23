@@ -262,6 +262,7 @@ namespace poolqueue {
       public:
          virtual ~CallbackWrapper() {}
 
+         virtual const std::type_info& argumentType() const = 0;
          virtual const std::type_info& resultType() const = 0;
          virtual bool hasRvalueArgument() const = 0;
          virtual bool hasExceptionPtrArgument() const = 0;
@@ -275,6 +276,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(typename std::decay<R>::type);
          }
@@ -302,6 +307,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(void);
          }
@@ -330,6 +339,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(void);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(typename std::decay<R>::type);
          }
@@ -354,6 +367,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(void);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(void);
          }
@@ -379,6 +396,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(Any);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(typename std::decay<R>::type);
          }
@@ -403,6 +424,10 @@ namespace poolqueue {
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
 
+         const std::type_info& argumentType() const {
+            return typeid(Any);
+         }
+         
          const std::type_info& resultType() const {
             return typeid(void);
          }
