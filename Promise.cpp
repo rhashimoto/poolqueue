@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <cassert>
-#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <vector>
@@ -48,7 +47,7 @@ namespace {
 
       // This function is called from a destructor so just abort
       // instead of throwing.
-      std::abort();
+      std::unexpected();
    };
 
    // This is the handler called on a bad callback argument cast,
@@ -128,7 +127,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
             (onReject_ ? onReject_->resultType() : typeid(detail::Any));
          const std::type_info& iType =
             next->onResolve_ ? next->onResolve_->argumentType() : typeid(void);
-         if (otype != iType &&
+         if (oType != iType &&
              oType != typeid(detail::Any) && oType != typeid(Promise) &&
              iType != typeid(void)) {
             throw std::logic_error(std::string("type mismatch: ") + oType.name() + " -> "  + iType.name());
@@ -257,6 +256,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
 poolqueue::Promise::Promise()
    : pimpl(std::make_shared<Pimpl>()) {
+   // STL containers will copy instead of move if they can't guarantee
+   // strong exception safety. These checks are sufficient for that.
    static_assert(std::is_nothrow_move_constructible<Promise>::value, "noexcept move");
    static_assert(std::is_nothrow_move_assignable<Promise>::value, "noexcept assign");
 }
