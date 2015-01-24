@@ -113,3 +113,23 @@ default handler can be replaced with
 `Promise::setBadCastExceptionHandler()`. If the replacement handler
 does not throw then the exception will be captured just like any other
 callback exception.
+
+## Delay
+The benefits of `Promise`s don't become apparent until you have
+asynchronous services that return them. `Delay` is a simple but
+useful service to create a `Promise` that is fulfilled when a timer
+expires or rejected when it is cancelled:
+
+    #include <poolqueue/Delay.hpp>
+    ...
+    Delay::after(std::chrono::seconds(5))
+      .then(
+        []() {
+          std::cout << "I waited.\n";
+        },
+        [](const std::exception_ptr& e) {
+          std::cout << "Couldn't wait.\n";
+        });
+
+## ThreadPool
+TBD
