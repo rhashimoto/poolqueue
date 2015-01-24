@@ -19,17 +19,16 @@ BOOST_AUTO_TEST_CASE(basic) {
    std::atomic<size_t> count(v.size());
    const auto start = std::chrono::steady_clock::now();
    for (int t : v) {
-      Delay::callAfter(
-         [&, t]() {
-            const auto elapsed = std::chrono::steady_clock::now() - start;
-            std::lock_guard<std::mutex> lock(m);
-            BOOST_CHECK_GE(
-               elapsed.count(),
-               std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(t)).count());
-            results.push_back(t);
-            --count;
-         },
-         std::chrono::milliseconds(t));
+      Delay::after(std::chrono::milliseconds(t))
+         .then([&, t]() {
+               const auto elapsed = std::chrono::steady_clock::now() - start;
+               std::lock_guard<std::mutex> lock(m);
+               BOOST_CHECK_GE(
+                  elapsed.count(),
+                  std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(t)).count());
+               results.push_back(t);
+               --count;
+            });
    }
 
    while (count)
@@ -45,14 +44,12 @@ BOOST_AUTO_TEST_CASE(cancel) {
    std::atomic<size_t> count(v.size());
    int exceptCount = 0;
    for (size_t i = 0; i < v.size(); ++i) {
-      v[i] = Delay::callAfter(
+      v[i] = Delay::after(std::chrono::milliseconds(500 + i));
+      v[i].then(
          [&, i]() {
             results.push_back(i);
             --count;
          },
-         std::chrono::milliseconds(500 + i));
-
-      v[i].except(
          [&](const std::exception_ptr& e) {
             try {
                std::rethrow_exception(e);

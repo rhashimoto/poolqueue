@@ -24,8 +24,8 @@ namespace poolqueue {
 
    // Enable timed callbacks.
    //
-   // This class contains static member functions to create and cancel
-   // asynchronous one-shot delayed function calls using Promises.
+   // This class contains static member functions to create a Promise
+   // that is fulfilled after the specified delay.
    //
    // Any outstanding Delay instances will be cancelled when static
    // object are destroyed after main() exits. This can result in
@@ -36,33 +36,26 @@ namespace poolqueue {
       };
 
       // Instantiate a delay.
-      // @f        A function/functor taking no arguments.
       // @duration Any std::chrono::duration, e.g. std::chrono::hours(2).
       //
-      // This static function returns a Promise that will be fulfilld
-      // with the result of calling f no sooner than the duration
-      // argument.
-      //
-      // The function f should not block or otherwise require significant
-      // time to run as this may cause other delayed calls to be later
-      // than expected.
+      // This static function returns a Promise that will be fulfilled
+      // no sooner than the duration argument.
       //
       // @return Promise fulfilled at expiration or rejected if cancelled.
-      template<typename F, typename T>
-      static Promise callAfter(F&& f, const T& duration) {
-         Promise p(std::forward<F>(f));
+      template<typename T>
+      static Promise after(const T& duration) {
+         Promise p;
          schedule(p, std::chrono::duration_cast<std::chrono::steady_clock::duration>(duration));
          return p;
       }
 
       // Cancel a delay.
-      // @p Promise previously returned by Delay::callAfter().
-      // @e Exception to reject the Promise.
+      // @p Promise previously returned by Delay::after().
+      // @e Optional exception to reject the Promise.
       //
-      // This function cancels the delayed Promise returned by
-      // callAfter(), returning true if successful. The Promise will
-      // be rejected with the optional exception_ptr argument, or
-      // Delay::cancelled if omitted.
+      // This function cancels a Promise returned by after(),
+      // returning true if successful. The Promise will be rejected
+      // with e, or Delay::cancelled if omitted.
       //
       // @return true if cancel was successful.
       static bool cancel(const Promise& p, const std::exception_ptr& e = std::make_exception_ptr(cancelled()));

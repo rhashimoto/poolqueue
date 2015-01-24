@@ -79,11 +79,11 @@ A PoolQueue `Promise` holds a shared pointer to its state. Copying a
 `Promise` produces another reference to the same state, not a brand
 new `Promise`. This allows lambdas to capture `Promise`s by value.
 
-When a `Promise` is settled, a non-exception settling value must match
-the type of any attached `onFulfil` callback argument unless it take
-no argument. This implies that `onFulfil` and `onReject` callbacks
-passed to `then()` must return the same type, and that type must match
-the `onFulfil` callback argument of any dependent `Promise`s.
+When a `Promise` is settled with a value that is not an exception, the
+value type must match the type of any attached `onFulfil` callback
+argument unless `onFulFil` takes no arguments. This implies that
+`onFulfil` and `onReject` callbacks passed to `then()` must return the
+same type (except if either returns a Promise).
 
 A `Promise` can be closed to `then()` and `except()` methods, either
 explicitly using `close()` or implicitly by passing an `onFulfil`
