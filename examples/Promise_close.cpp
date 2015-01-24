@@ -7,21 +7,15 @@
 
 using poolqueue::Promise;
 
-// Class with a non-working copy constructor for demonstration
-// purposes.
+// Movable but not copyable class.
 struct Uncopyable {
    Uncopyable() {}
    Uncopyable(Uncopyable&&) {
       std::cout << "move constructor\n";
    }
 
-   Uncopyable(const Uncopyable&) {
-      std::unexpected();
-   }
-   Uncopyable& operator=(const Uncopyable&) {
-      std::unexpected();
-      return *this;
-   }
+   Uncopyable(const Uncopyable&) = delete;
+   Uncopyable& operator=(const Uncopyable&) = delete;
 };
 
 int main() {
