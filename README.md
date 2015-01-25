@@ -134,11 +134,11 @@ Additional example code is under examples/:
 
 * [Delay basics](https://github.com/rhashimoto/poolqueue/blob/master/examples/Delay_basics.cpp)
 
-## ThreadPool PoolQueue also contains a thread pool built on
-`Promise`s.  Passing a callable object to `ThreadPool::post()` adds it
-to a queue and returns a `Promise` that is settled with the result of
-the callable object when it is executed on one of the threads in the
-pool:
+## ThreadPool
+PoolQueue also contains a thread pool built on `Promise`s.  Passing a
+callable object to `ThreadPool::post()` adds it to a queue and returns
+a `Promise` that is settled with the result of the callable object
+when it is executed on one of the threads in the pool:
 
     #include <poolqueue/ThreadPool.hpp>
     ...
