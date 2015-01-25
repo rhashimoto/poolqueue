@@ -16,6 +16,7 @@ EXTRA_PROGRAMS = \
 	Promise_basics \
 	Promise_all \
 	Promise_close \
+	ThreadPool_basics \
 	ThreadPool_strand
 
 CLEANFILES = $(EXTRA_PROGRAMS)
@@ -23,6 +24,7 @@ CLEANFILES = $(EXTRA_PROGRAMS)
 Promise_basics_SOURCES = Promise_basics.cpp
 Promise_all_SOURCES = Promise_all.cpp
 Promise_close_SOURCES = Promise_close.cpp
+ThreadPool_basics_SOURCES = ThreadPool_basics.cpp
 ThreadPool_strand_SOURCES = ThreadPool_strand.cpp
 
 .PHONY: examples

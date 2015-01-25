@@ -70,8 +70,8 @@ namespace poolqueue {
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
 
-         if (threadId() >= 0)
-            return Promise(std::forward<F>(f));
+         if (index() >= 0)
+            return Promise(std::forward<F>(f)).settle();
          else
             return post(std::forward<F>(f));
       }
@@ -92,11 +92,11 @@ namespace poolqueue {
          };
       }
 
-      // Get thread id.
+      // Get thread index.
       //
       // If the current context is a ThreadPool thread, then return
       // its 0-based index, otherwise -1.
-      static int threadId();
+      static int index();
 
       // Get number of threads in the pool.
       //

@@ -9,23 +9,23 @@
 using poolqueue::ThreadPool;
 
 BOOST_AUTO_TEST_CASE(basic) {
-   BOOST_CHECK_EQUAL(ThreadPool::threadId(), -1);
+   BOOST_CHECK_EQUAL(ThreadPool::index(), -1);
 
    int count = 0;
    std::mutex exclusive;
    ThreadPool::post([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         BOOST_CHECK_GE(ThreadPool::index(), 0);
          ++count;
       });
    ThreadPool::dispatch([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         BOOST_CHECK_GE(ThreadPool::index(), 0);
          ++count;
       });
    ThreadPool::wrap([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         BOOST_CHECK_GE(ThreadPool::index(), 0);
          ++count;
       })();
 
@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(promise) {
    bool complete = false;
    ThreadPool::post(
       [&]() {
-         BOOST_CHECK_GE(ThreadPool::threadId(), 0);
+         BOOST_CHECK_GE(ThreadPool::index(), 0);
          return 42;
       })
       .then([&](int i) {

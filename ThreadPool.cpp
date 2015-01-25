@@ -328,7 +328,7 @@ poolqueue::ThreadPool::enqueue(Promise& f) {
 }
 
 int
-poolqueue::ThreadPool::threadId() {
+poolqueue::ThreadPool::index() {
    Pimpl& pimpl = Pimpl::singleton();
    auto i = pimpl.ids_.find(std::this_thread::get_id());
    return i != pimpl.ids_.end() ? i->second : -1;

@@ -7,6 +7,12 @@ promises. The library implementation makes use of C++11 features but
 has no external dependencies (the test suite and some examples require
 Boost).
 
+The key distinction between Promises/A+ and `std::promise` in C++11 is
+that Promises/A+ provides *non-blocking* synchronization (via chaining
+function objects) and `std::promise` provides *blocking*
+synchronization (or polling). Both have their uses and one is not a
+direct replacement for the other.
+
 PoolQueue is developed by Shoestring Research, LLC and is available
 under the [Apache License Version
 2.0](http://www.apache.org/licenses/LICENSE-2.0).
@@ -138,7 +144,7 @@ is executed on one of the threads in the pool:
 
     #include <poolqueue/ThreadPool.hpp>
     ...
-    Promise p = poolqueue::ThreadPool::post(
+    poolqueue::Promise p = poolqueue::ThreadPool::post(
       []() {
         std::cout << "I'm running in the pool.\n";
         return std::string("my data");
@@ -153,4 +159,5 @@ concurrency support.
 
 Additional example code is under examples/:
 
+* [ThreadPool basics](https://github.com/rhashimoto/poolqueue/blob/master/examples/ThreadPool_basics.cpp)
 * [ThreadPool strand](https://github.com/rhashimoto/poolqueue/blob/master/examples/ThreadPool_strand.cpp)
