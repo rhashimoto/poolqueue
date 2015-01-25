@@ -14,16 +14,12 @@ poolqueue:
 
 EXTRA_PROGRAMS = \
 	Promise_basics \
-	Promise_chain \
-	Promise_sub \
 	Promise_close \
 	ThreadPool_strand
 
 CLEANFILES = $(EXTRA_PROGRAMS)
 
 Promise_basics_SOURCES = Promise_basics.cpp
-Promise_chain_SOURCES = Promise_chain.cpp
-Promise_sub_SOURCES = Promise_sub.cpp
 Promise_close_SOURCES = Promise_close.cpp
 ThreadPool_strand_SOURCES = ThreadPool_strand.cpp
 
