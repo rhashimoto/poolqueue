@@ -28,10 +28,10 @@ Promises/A+ specification](https://promisesaplus.com/) describes a promise:
 > fulfilled.
 
 A PoolQueue `Promise` can be in one of three states: *pending* (aka
-not settled), *fulfilled*, or *rejected*. Pending, aka not settled,
-means that the `Promise` has not yet been fulfilled or
-rejected. Fulfilled means that the `Promise` has a value (possibly
-`void`). Rejected means that the `Promise` has an exception.
+not settled), *fulfilled*, or *rejected*. Pending means that the
+`Promise` has not yet been fulfilled or rejected. Fulfilled means that
+the `Promise` has a value (possibly `void`). Rejected means that the
+`Promise` has an exception.
 
 A `Promise` can have function callbacks to invoke when it is settled
 (either fulfilled or rejected). Whichever callback is invoked, the
@@ -84,12 +84,6 @@ A PoolQueue `Promise` holds a shared pointer to its state. Copying a
 `Promise` produces another reference to the same state, not a brand
 new `Promise`. This allows lambdas to capture `Promise`s by value.
 
-When a `Promise` is settled with a value that is not an exception, the
-value type must match the type of any attached `onFulfil` callback
-argument unless `onFulFil` takes no arguments. This implies that
-`onFulfil` and `onReject` callbacks passed to `then()` must return the
-same type (except if either returns a Promise).
-
 A `Promise` can be closed to `then()` and `except()` methods, either
 explicitly using `close()` or implicitly by passing an `onFulfil`
 callback to `then()` that takes an rvalue reference argument. Closed
@@ -98,10 +92,10 @@ optimization), plus moving a value from an rvalue reference avoids a
 copy.
 
 The static method `Promise::all()` can be used to create a new
-`Promise` dependent on a collection of `Promise`s. The new `Promise`
-fulfils (with an empty value) when all the `Promise`s in the
-collection fulfil, or rejects when any of the `Promise`s in the
-collection reject (with the exception from the first to reject).
+`Promise` dependent on an input set of `Promise`s. The new `Promise`
+fulfils (with an empty value) when all the input `Promise`s fulfil, or
+rejects when any of the input `Promise`s reject (with the exception
+from the first to reject).
 
 A rejected Promise that never delivers its exception to an `onReject`
 callback will invoke an undelivered exception handler in its
@@ -135,6 +129,10 @@ expires or rejected when it is cancelled:
         [](const std::exception_ptr& e) {
           std::cout << "Couldn't wait.\n";
         });
+
+Additional example code is under examples/:
+
+* [Delay basics](https://github.com/rhashimoto/poolqueue/blob/master/examples/Delay_basics.cpp)
 
 ## ThreadPool
 PoolQueue also contains a global thread pool built on `Promise`s.

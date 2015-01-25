@@ -29,8 +29,8 @@ int main() {
       });
 
 #if 0
-   // ERROR - Callbacks attached to a Promise::all() Promise should
-   // not take an argument.
+   // ERROR - onFulfil callbacks attached to a Promise::all() Promise
+   // should not take an argument.
    pA.then([](const std::string& s) {
       });
 #endif
