@@ -23,10 +23,11 @@ public:
       // looks meaningless) ensures that ordering.
       poolqueue::ThreadPool::getThreadCount();
    }
-   
-   Strand(const Strand&) = delete;
-   Strand(Strand&& other) = default;
 
+   // Movable but not copyable (std::mutex member can't be copied).
+   Strand(Strand&&) = default;
+   Strand& operator=(Strand&&) = default;
+   
    template<typename F>
    poolqueue::Promise post(F&& f) {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -87,10 +88,24 @@ int main() {
             // constraints are still satisfied.
             if ((counter % 3) == 0)
                throw std::runtime_error("ignore me");
-         }).except([](const std::exception_ptr& e){
+            return i;
+         }).then(
+            [=](int&& value) {
+               // Important! This code is not running in the Strand!
+               // Chaining to Strand::post() obeys the Promise
+               // guarantee of executing after the posted function
+               // but may overlap execution with the next Strand
+               // function.
+               //
+               // Declaring an rvalue argument implicitly closes the
+               // previous Promise. This is an optional optimization,
+               // included here to prove that closing it does not
+               // prevent additional posts to the Strand.
+               if (value != i)
+                  std::unexpected();
+            },
+            [](const std::exception_ptr& e){
                // Important! This code is not running in the strand!
-               // Only function objects supplied to post() obey the
-               // strand guarantees.
                try {
                   if (e)
                      std::rethrow_exception(e);
