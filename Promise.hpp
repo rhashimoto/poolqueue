@@ -93,6 +93,8 @@ namespace poolqueue {
             detail::makeCallbackWrapper(std::forward<Reject>(onReject)) :
             static_cast<detail::CallbackWrapper *>(nullptr)) {
          typedef typename detail::CallableTraits<Fulfil>::ArgumentType FulfilArgument;
+         static_assert(!std::is_same<typename std::decay<FulfilArgument>::type, Promise>::value,
+                       "onFulfil callback cannot take a Promise argument.");
          static_assert(!std::is_same<typename std::decay<FulfilArgument>::type, std::exception_ptr>::value,
                        "onFulfil callback cannot take a std::exception_ptr argument.");
          typedef typename detail::CallableTraits<Reject>::ArgumentType RejectArgument;

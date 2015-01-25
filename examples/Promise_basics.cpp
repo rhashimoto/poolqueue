@@ -177,7 +177,7 @@ int main() {
    assert(p4.settled());
    assert(p6.settled());
 
-   // ...and except() works the same as then but for not taking
+   // ...and except() works the same as then() but does not take
    // an onFulfil argument.
    //
    // Because p6 was missing the callback that would have been
