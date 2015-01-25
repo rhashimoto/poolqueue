@@ -122,7 +122,7 @@ expires or rejected when it is cancelled:
 
     #include <poolqueue/Delay.hpp>
     ...
-    Delay::after(std::chrono::seconds(5))
+    poolqueue::Delay::after(std::chrono::seconds(5))
       .then(
         []() {
           std::cout << "I waited.\n";
@@ -132,4 +132,26 @@ expires or rejected when it is cancelled:
         });
 
 ## ThreadPool
-TBD
+PoolQueue also contains a global thread pool built on `Promise`s.
+Passing a callable object to `ThreadPool::post()` adds it to a queue
+and returns a `Promise` that is settled when the callable object
+is executed on one of the threads in the pool:
+
+    #include <poolqueue/ThreadPool.hpp>
+    ...
+    Promise p = poolqueue::ThreadPool::post(
+      []() {
+        std::cout << "I'm running in the pool.\n";
+        return std::string("my data");
+      });
+      
+    p.then([](std::string& s) {
+      std::cout << "Worker result is " << s << '\n';
+    });
+
+The default number of pool threads is the detected hardware
+concurrency support.
+
+Additional example code is under examples/:
+
+* [ThreadPool strand](https://github.com/rhashimoto/poolqueue/blob/master/examples/ThreadPool_strand.cpp)
