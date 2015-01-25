@@ -70,6 +70,7 @@ settled.
 Additional example code is under examples/:
 
 * [Basic `Promise` usage](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_basics.cpp)
+* [`Promise::all`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_all.cpp)
 * [Closed `Promise`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_close.cpp)
 
 ## Promise details
