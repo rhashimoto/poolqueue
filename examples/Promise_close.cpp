@@ -26,7 +26,8 @@ int main() {
    assert(p0.closed());
 
 #if 0
-   // ERROR - Cannot call then() or except().
+   // DON'T DO THIS - Cannot call then() or except() after a
+   // Promise is closed.
    p0.then([]() { });
    p0.except([]() { });
 #endif
@@ -40,7 +41,8 @@ int main() {
    assert(p1.closed());
 
 #if 0
-   // ERROR - Cannot call then() or except().
+   // DON'T DO THIS - Cannot call then() or except() after a
+   // Promise is closed.
    p1.then([]() { });
    p1.except([]() { });
 #endif

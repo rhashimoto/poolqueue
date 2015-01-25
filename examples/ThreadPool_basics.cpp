@@ -9,67 +9,71 @@ using poolqueue::ThreadPool;
 using poolqueue::Promise;
 
 int main() {
+   ThreadPool tp;
+   
    // The default size of the pool is the number of hardware threads.
-   std::cout << ThreadPool::getThreadCount() << " default threads\n";
+   std::cout << tp.getThreadCount() << " default threads\n";
 
    // The size of the pool can be changed if desired.
-   ThreadPool::setThreadCount(5);
-   assert(ThreadPool::getThreadCount() == 5);
-   std::cout << "Changed to " << ThreadPool::getThreadCount() << " threads\n";
+   tp.setThreadCount(5);
+   assert(tp.getThreadCount() == 5);
+   std::cout << "Changed to " << tp.getThreadCount() << " threads\n";
 #if 0
-   // ERROR - Don't change the thread count from within a pool thread.
-   ThreadPool::post([]() {
-         ThreadPool::setThreadCount(1);
+   // DON'T DO THIS - Don't change the thread count from within a pool
+   // thread.
+   tp.post([&tp]() {
+         tp.setThreadCount(1);
       });
 #endif
 
    // Use post() to queue a function to execute in the pool.
    std::cout << "main() thread " << std::this_thread::get_id() << '\n';
-   ThreadPool::post([]() {
+   tp.post([]() {
          std::cout << "function running in thread " << std::this_thread::get_id() << '\n';
       });
 
 #if 0
-   // ERROR - Functions to execute in the pool should not have an argument.
-   ThreadPool::post([](const std::string& s) {
+   // DON'T DO THIS - Functions to execute in the pool should not have
+   // an argument.
+   tp.post([](const std::string& s) {
       });
 #endif
    
    // index() returns the thread index in the pool, -1 if not a
    // pool thread.
-   assert(ThreadPool::index() == -1);
-   ThreadPool::post([]() {
-         const auto index = ThreadPool::index();
-         assert(index >= 0 && index < ThreadPool::getThreadCount());
+   assert(tp.index() == -1);
+   tp.post([&tp]() {
+         const auto index = tp.index();
+         assert(index >= 0 && index < tp.getThreadCount());
          std::cout << "posted thread index " << index << '\n';
       });
 
    // dispatch() will execute its function argument immediately if
    // calling thread is in the pool; otherwise it will call post().
-   ThreadPool::dispatch([]() {
-         const auto index = ThreadPool::index();
-         assert(index >= 0 && index < ThreadPool::getThreadCount());
+   tp.dispatch([&tp]() {
+         const auto index = tp.index();
+         assert(index >= 0 && index < tp.getThreadCount());
          std::cout << "dispatched thread index " << index << '\n';
       });
    
-   ThreadPool::post([]() {
+   tp.post([&tp]() {
          // Calling dispatch() here invokes the function synchronously.
-         std::cout << "calling dispatch() from " << ThreadPool::index() << "...\n";
-         ThreadPool::dispatch([]() {
-               std::cout << "...executes synchronously on " << ThreadPool::index() << '\n';
+         std::cout << "calling dispatch() from " << tp.index() << "...\n";
+         tp.dispatch([&tp]() {
+               std::cout << "...executes synchronously on " << tp.index() << '\n';
             });
       });
 
    // wrap() transforms a function into a new function that dispatches
    // the original function.
-   auto wrapped = ThreadPool::wrap([]() {
-         std::cout << "wrapped function on " << ThreadPool::index() << '\n';
+   auto wrapped = tp.wrap([&tp]() {
+         std::cout << "wrapped function on " << tp.index() << '\n';
       });
    wrapped();
    
    // post() and dispatch() return a Promise that settles with the
    // result of the function.
-   Promise p0 = ThreadPool::post([]() {
+   Promise p0 = tp.post([]() {
          return std::string("foo");
       });
 
@@ -84,7 +88,7 @@ int main() {
          std::cout << "posted function returned " << s << '\n';
       });
 
-   Promise p1 = ThreadPool::dispatch([]() {
+   Promise p1 = tp.dispatch([]() {
          throw std::runtime_error("bar");
       });
 
@@ -105,31 +109,31 @@ int main() {
    // before any functions queued after the call begin. However, by
    // itself it does *not* block - i.e. there is no guarantee what
    // is or is not executing at the moment synchronize() returns.
-   ThreadPool::synchronize();
-   ThreadPool::post([]() {
+   tp.synchronize();
+   tp.post([]() {
          // When this executes, which may not be until after the
          // below synchronize() call returns, it will not overlap
          // with any other ThreadPool function.
       });
-   ThreadPool::synchronize();
+   tp.synchronize();
 
    // synchronize() does return a std::shared_future<void> that *can*
    // be used to block until the pool is idle.
    std::atomic<int> counter(0);
    for (int i = 0; i < 4; ++i) {
-      ThreadPool::post([&]() {
+      tp.post([&]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             ++counter;
          });
    }
 
-   std::shared_future<void> future = ThreadPool::synchronize();
+   std::shared_future<void> future = tp.synchronize();
    future.wait();
    assert(counter == 4);
 #if 0
-   // ERROR - Do not block inside a ThreadPool thread.
-   ThreadPool::post([]() {
-         ThreadPool::synchronize().wait();
+   // DON'T DO THIS - Do not block inside a ThreadPool thread.
+   tp.post([&tp]() {
+         tp.synchronize().wait();
       });
 #endif
    

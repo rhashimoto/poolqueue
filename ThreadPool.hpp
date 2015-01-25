@@ -29,6 +29,14 @@ namespace poolqueue {
    // control a basic thread pool built using Promises.
    class ThreadPool {
    public:
+      // Construct a pool.
+      // @nThreads  Number of threads in the pool. The default
+      //            is the hardware concurrency.
+      ThreadPool(unsigned int nThreads = 0);
+
+      // Destructor.
+      ~ThreadPool();
+      
       // Post (enqueue) a job.
       // @f Function or functor to run.
       //
@@ -39,14 +47,14 @@ namespace poolqueue {
       //
       // Note that calling .then()/.except() on the returned Promise
       // will not necessary continue on a ThreadPool thread. If the
-      // posted function happens to be executed before
-      // .then()/.except(), the continuations will execute
-      // synchronously.
+      // posted function happens to be executed before a dependent
+      // Promise is attached, a callback on the dependent Promise
+      // would be executed synchronously with attachment.
       //
       // @return Promise that fulfils or rejects with the outcome
       //         of the function argument.
       template<typename F>
-      static Promise post(F&& f) {
+      Promise post(F&& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
@@ -56,7 +64,7 @@ namespace poolqueue {
          return p;
       }
 
-      // Ensure that a job runs in the thread pool
+      // Ensure that a job runs in the thread pool.
       // @f Function or functor to run.
       //
       // Execute a function synchronously if currently running in a
@@ -65,7 +73,7 @@ namespace poolqueue {
       // @return Promise that fulfils or rejects with the outcome
       //         of the function argument.
       template<typename F>
-      static Promise dispatch(F&& f) {
+      Promise dispatch(F&& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
@@ -82,7 +90,7 @@ namespace poolqueue {
       // Given an input function, return a function that runs the
       // input function in a ThreadPool thread.
       template<typename F>
-      static std::function<Promise()> wrap(const F& f) {
+      std::function<Promise()> wrap(const F& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
@@ -96,21 +104,20 @@ namespace poolqueue {
       //
       // If the current context is a ThreadPool thread, then return
       // its 0-based index, otherwise -1.
-      static int index();
+      int index();
 
       // Get number of threads in the pool.
       //
       // @return Number of threads.
-      static int getThreadCount();
+      int getThreadCount();
 
       // Set number of threads in the pool.
       //
-      // The number of threads can be dynamically adjusted. By
-      // default it is the number of hardware threads determined by
+      // The number of threads can be dynamically adjusted. By default
+      // it is the number of hardware threads determined by
       // std::thread::hardware_concurrency(). setThreadCount() must
-      // not be called concurrently with any other ThreadPool
-      // function.
-      static void setThreadCount(int n);
+      // not be called concurrently with any other member function.
+      void setThreadCount(int n);
 
       // Synchronize threads.
       //
@@ -121,10 +128,13 @@ namespace poolqueue {
       // ThreadPool thread (otherwise deadlock will occur).
       //
       // @return Future whose result is set when the queue is empty.
-      static std::shared_future<void> synchronize();
+      std::shared_future<void> synchronize();
 
    private:
-      static void enqueue(Promise& f);
+      struct Pimpl;
+      std::unique_ptr<Pimpl> pimpl;
+      
+      void enqueue(Promise& f);
    };
 
 } // namespace poolqueue

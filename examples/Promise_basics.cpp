@@ -36,16 +36,16 @@ int main() {
    assert(p1.settled());
 
 #if 0
-   // ERROR - A Promise cannot be settled more than once.
+   // DON'T DO THIS - A Promise cannot be settled more than once.
    p0.settle(std::string("bar"));
 
-   // ERROR - settle() can never be called on a dependent Promise
-   // (i.e. one returned by then() or except() methods) even if it has
-   // not been settled.
+   // DON'T DO THIS - settle() can never be called on a dependent
+   // Promise (i.e. one returned by then() or except() methods) even
+   // if it has not been settled.
    p1.settle(std::string("baz"));
 
-   // ERROR - The onResolve argument type must match the upstream
-   // type.
+   // DON'T DO THIS - The onResolve argument type must match the
+   // upstream type.
    p0.then(
       // onFulfil callback
       [](int i) { // <-- type mismatch
@@ -79,8 +79,8 @@ int main() {
    assert(p2.settled());
 
 #if 0
-   // ERROR - onFulfil and onReject cannot have different return
-   // types.
+   // DON'T DO THIS - onFulfil and onReject cannot have different
+   // return types.
    p0.then(
       // onFulfil callback
       [](const std::string& s) {
@@ -218,9 +218,8 @@ int main() {
    assert(!p9.settled());
    assert(!p10.settled());
 #if 0
-   // ERROR - A returned Promise does not propagate like
-   // other types. A callback should never take a Promise
-   // argument.
+   // DON'T DO THIS - A returned Promise does not propagate like other
+   // types. A callback should never take a Promise argument.
    p10.then([](const Promise& value) {
       });
 #endif

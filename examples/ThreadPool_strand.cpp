@@ -10,18 +10,15 @@
 // can be useful, for example, in managing access to a resource
 // without blocking.
 class Strand {
+   poolqueue::ThreadPool& tp_;
    std::mutex mutex_;
 
    // The last posted task provides the place to add the next task.
    poolqueue::Promise tail_;
 public:
-   Strand()
-      : tail_(poolqueue::Promise().settle()) {
-      // If you have a statically constructed instance of Strand, it
-      // should be destroyed after the global ThreadPool state which
-      // is also statically constructed. This call (which admittedly
-      // looks meaningless) ensures that ordering.
-      poolqueue::ThreadPool::getThreadCount();
+   Strand(poolqueue::ThreadPool& threadPool)
+      : tp_(threadPool)
+      , tail_(poolqueue::Promise().settle()) {
    }
 
    // Movable but not copyable (std::mutex member can't be copied).
@@ -36,7 +33,7 @@ public:
       poolqueue::Promise p = tail_.then([this, f]() {
             // ...schedule the input function. The returned Promise
             // will settle p with the result of the function.
-            return poolqueue::ThreadPool::post(f);
+            return tp_.post(f);
          });
 
       // This is a minor optimization that just guarantees we won't be
@@ -54,7 +51,8 @@ public:
 };
 
 int main() {
-   Strand strand;
+   poolqueue::ThreadPool tp;
+   Strand strand(tp);
 
    // Schedule a bunch of tasks on the strand. Verify that they
    // execute in order and that they do not overlap.

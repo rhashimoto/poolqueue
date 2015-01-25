@@ -142,7 +142,8 @@ is executed on one of the threads in the pool:
 
     #include <poolqueue/ThreadPool.hpp>
     ...
-    poolqueue::Promise p = poolqueue::ThreadPool::post(
+    poolqueue::ThreadPool tp;
+    poolqueue::Promise p = tp.post(
       []() {
         std::cout << "I'm running in the pool.\n";
         return std::string("my data");

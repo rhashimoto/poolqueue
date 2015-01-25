@@ -23,7 +23,7 @@ int main() {
             // Would get here if cancelled.
          });
 #if 0
-   // ERROR - Don't attach long-running callbacks to Delay
+   // DON'T DO THIS - Don't attach long-running callbacks to Delay
    // Promises. The Delay implementation uses a single thread for
    // settling which means that callbacks that require significant
    // time to execute may cause other delays to be triggered later
