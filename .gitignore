@@ -1,8 +1,10 @@
 .*
+*.o
 *.la
 *.lo
 *.log
 *.trs
+*.tar.gz
 *_test
 
 aclocal.m4
