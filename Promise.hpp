@@ -64,7 +64,7 @@ namespace poolqueue {
       Promise& operator=(const Promise&) = default;
 
       // Move constructor.
-      Promise(Promise&&) = default;
+      Promise(Promise&&) noexcept;
 
       // Move assignment.
       Promise& operator=(Promise&&) = default;
@@ -188,6 +188,15 @@ namespace poolqueue {
       //
       // @return *this
       Promise& close();
+      
+      // Disallow future then/except calls.
+      //
+      // This method explicitly closes a Promise to disallow calling
+      // then() or except(). A closed Promise may settle slightly
+      // faster than an unclosed Promise.
+      //
+      // @return *this
+      const Promise& close() const;
       
       // Get the settled state.
       //

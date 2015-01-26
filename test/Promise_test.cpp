@@ -10,12 +10,70 @@
 
 using poolqueue::Promise;
 
+static int f_string_to_int(const std::string& s) {
+   return 42;
+}
+
+static void f_string_to_void(const std::string& s) {
+}
+
+static int f_void_to_int() {
+   return 42;
+}
+
+static void f_void_to_void() {
+}
+
 BOOST_AUTO_TEST_CASE(callback) {
    using namespace poolqueue::detail;
 
    const std::string ArgumentValue = "how now brown cow";
    const int ResultValue = 42;
 
+   {
+      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_string_to_int));
+      BOOST_CHECK(!cb->hasRvalueArgument());
+      BOOST_CHECK(!cb->hasExceptionPtrArgument());
+
+      Any a(ArgumentValue);
+      Any result = (*cb)(std::move(a));
+      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
+      BOOST_CHECK_EQUAL(result.cast<decltype(ResultValue)>(), ResultValue);
+   }
+   
+   {
+      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_string_to_void));
+      BOOST_CHECK(!cb->hasRvalueArgument());
+      BOOST_CHECK(!cb->hasExceptionPtrArgument());
+
+      Any a(ArgumentValue);
+      Any result = (*cb)(std::move(a));
+      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
+      BOOST_CHECK(result.empty());
+   }
+   
+   {
+      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_void_to_int));
+      BOOST_CHECK(!cb->hasRvalueArgument());
+      BOOST_CHECK(!cb->hasExceptionPtrArgument());
+
+      Any a(ArgumentValue);
+      Any result = (*cb)(std::move(a));
+      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
+      BOOST_CHECK_EQUAL(result.cast<decltype(ResultValue)>(), ResultValue);
+   }
+   
+   {
+      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_void_to_void));
+      BOOST_CHECK(!cb->hasRvalueArgument());
+      BOOST_CHECK(!cb->hasExceptionPtrArgument());
+
+      Any a(ArgumentValue);
+      Any result = (*cb)(std::move(a));
+      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
+      BOOST_CHECK(result.empty());
+   }
+   
    {
       // std::string f(std::string)
       std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper([=](std::string value) {
@@ -182,42 +240,62 @@ BOOST_AUTO_TEST_CASE(callback) {
 }
 
 BOOST_AUTO_TEST_CASE(value) {
+   // Default constructed.
    Promise::Value v;
    BOOST_CHECK(v.empty());
 
+   // Constructed with simple type.
    Promise::Value i(42);
    BOOST_CHECK(i.type() == typeid(int));
    BOOST_CHECK_EQUAL(i.cast<int>(), 42);
    BOOST_CHECK_EQUAL(i.cast<int&>(), 42);
    BOOST_CHECK_EQUAL(i.cast<const int&>(), 42);
    BOOST_CHECK_THROW(i.cast<std::string>(), std::bad_cast);
-   
+
+   // Const instance.
    const Promise::Value ci(42);
    BOOST_CHECK(ci.type() == typeid(int));
    BOOST_CHECK_EQUAL(ci.cast<int>(), 42);
    BOOST_CHECK_EQUAL(ci.cast<const int&>(), 42);
    BOOST_CHECK_THROW(ci.cast<std::string>(), std::bad_cast);
-   
+
+   // Constructed with class type.
    Promise::Value s(std::string("foo"));
    BOOST_CHECK(s.type() == typeid(std::string));
    BOOST_CHECK_EQUAL(s.cast<std::string>(), "foo");
    BOOST_CHECK_THROW(s.cast<int>(), std::bad_cast);
 
+   // Copy constructor.
    Promise::Value iCopy(i);
    BOOST_CHECK(i.type() == typeid(int));
    BOOST_CHECK_EQUAL(i.cast<int>(), 42);
    BOOST_CHECK(iCopy.type() == typeid(int));
    BOOST_CHECK_EQUAL(iCopy.cast<int>(), 42);
 
+   // Move constructor.
    Promise::Value iMove(std::move(i));
    BOOST_CHECK(i.empty());
-   BOOST_CHECK(iCopy.type() == typeid(int));
-   BOOST_CHECK_EQUAL(iCopy.cast<int>(), 42);
+   BOOST_CHECK(iMove.type() == typeid(int));
+   BOOST_CHECK_EQUAL(iMove.cast<int>(), 42);
 
+   // Copy assignment.
+   i = 94;
+   iCopy = i;
+   BOOST_CHECK_EQUAL(iCopy.cast<int>(), 94);
+   BOOST_CHECK_EQUAL(i.cast<int>(), 94);
+
+   // Move assignment.
+   i = 49;
+   iMove = std::move(i);
+   BOOST_CHECK_EQUAL(iMove.cast<int>(), 49);
+   BOOST_CHECK_EQUAL(i.cast<int>(), 42);
+   
+   // Value assignment of simple type.
    i = 14;
    BOOST_CHECK(i.type() == typeid(int));
    BOOST_CHECK_EQUAL(i.cast<int>(), 14);
-   
+
+   // Value assignment of class type.
    s = std::string("bar");
    BOOST_CHECK(s.type() == typeid(std::string));
    BOOST_CHECK_EQUAL(s.cast<std::string>(), "bar");
@@ -225,6 +303,7 @@ BOOST_AUTO_TEST_CASE(value) {
    BOOST_CHECK_EQUAL(const_cast<const Promise::Value&>(s).cast<std::string>(), "bar");
    BOOST_CHECK_EQUAL(const_cast<const Promise::Value&>(s).cast<const std::string&>(), "bar");
 
+   // Assign to held value.
    s.cast<std::string&>() = "foobar";
    BOOST_CHECK_EQUAL(s.cast<std::string>(), "foobar");
 
@@ -240,73 +319,201 @@ BOOST_AUTO_TEST_CASE(value) {
    BOOST_CHECK(b.empty());
 }
 
-BOOST_AUTO_TEST_CASE(basic) {
+BOOST_AUTO_TEST_CASE(constructors) {
    {
+      // Default constructor.
       Promise p;
       BOOST_CHECK(!p.settled());
-   
-      p.settle(42);
-      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
    }
 
-   Promise::ExceptionHandler originalHandler = Promise::setUndeliveredExceptionHandler([](const std::exception_ptr&) {});
    {
+      Promise p = Promise().settle(42);
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
 
+      // Copy constructor.
+      Promise pCopied(p);
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(pCopied.settled());
+      BOOST_CHECK(!pCopied.closed());
+      
+      pCopied.then([](int value) {
+            BOOST_CHECK_EQUAL(value, 42);
+         });
+   }
+
+   {
+      Promise p = Promise().settle(42).close();
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(p.closed());
+
+      // Copy constructor.
+      Promise pCopied(p);
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(p.closed());
+      BOOST_CHECK(pCopied.settled());
+      BOOST_CHECK(pCopied.closed());
+   }
+
+   {
+      Promise p = Promise().settle(17);
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      
+      // Move constructor.
+      Promise pMoved(std::move(p));
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(pMoved.settled());
+      BOOST_CHECK(!pMoved.closed());
+      
+      pMoved.then([](int value) {
+            BOOST_CHECK_EQUAL(value, 17);
+         });
+   }
+
+   {
+      Promise p = Promise().settle(17).close();
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(p.closed());
+      
+      // Move constructor.
+      Promise pMoved(std::move(p));
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(pMoved.settled());
+      BOOST_CHECK(pMoved.closed());
+   }
+
+   {
+      // Callback constructor + fulfil.
+      bool success = false;
+      Promise p(
+         [&](const std::string& s) {
+            BOOST_CHECK_EQUAL(s, "foo");
+            success = true;
+         },
+         [](const std::exception_ptr& e) {
+            BOOST_CHECK(false);
+         });
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(!success);
+
+      p.settle(std::string("foo"));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(success);
+   }
+
+   {
+      // Callback constructor + reject and return values.
+      bool success = false;
+      Promise p(
+         [](const std::string& s) {
+            BOOST_CHECK(false);
+            return 0;
+         },
+         [&](const std::exception_ptr& e) {
+            try {
+               std::rethrow_exception(e);
+            }
+            catch(const std::exception& e) {
+               BOOST_CHECK_EQUAL(e.what(), std::string("bar"));
+               success = true;
+               return -1;
+            }
+         });
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(!success);
+
+      p.settle(std::make_exception_ptr(std::runtime_error("bar")));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(success);
+   }
+
+   {
+      // Callback constructor with elided onReject.
+      bool success = false;
+      Promise p(
+         [&](const std::string& s) {
+            BOOST_CHECK_EQUAL(s, "foo");
+            success = true;
+         });
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(!success);
+
+      p.settle(std::string("foo"));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(success);
+   }
+
+   {
+      // Callback constructor + no arguments.
+      bool success = false;
+      Promise p(
+         [&]() {
+            success = true;
+         },
+         []() {
+            BOOST_CHECK(false);
+         });
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(!success);
+
+      p.settle(std::string("foo"));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(success);
+   }
+
+   {
+      // Callback constructor + no arguments and return values.
+      bool success = false;
+      Promise p(
+         [&]() {
+            success = true;
+            return 0;
+         },
+         []() {
+            BOOST_CHECK(false);
+            return -1;
+         });
+      BOOST_CHECK(!p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(!success);
+
+      p.settle(std::string("foo"));
+      BOOST_CHECK(p.settled());
+      BOOST_CHECK(!p.closed());
+      BOOST_CHECK(success);
+   }
+}
+
+BOOST_AUTO_TEST_CASE(undeliveredException) {
+   bool triggered = false;
+   Promise::ExceptionHandler originalHandler =
+      Promise::setUndeliveredExceptionHandler(
+         [&triggered](const std::exception_ptr&) {
+            triggered = true;
+         });
+
+   {
       Promise p;
       BOOST_CHECK(!p.settled());
       p.settle(std::make_exception_ptr(0));
       BOOST_CHECK(p.settled());
-
    }
-   Promise::setUndeliveredExceptionHandler(originalHandler);
+   BOOST_CHECK(triggered);
    
-   {
-      bool complete = false;
-      Promise p(
-         [&](int value) {
-            BOOST_CHECK_EQUAL(value, 42);
-            complete = true;
-         });
-
-      BOOST_CHECK(!complete);
-
-      p.settle(42);
-      BOOST_CHECK(complete);
-   }
-
-   {
-      bool complete = false;
-      Promise p(
-         [&](int value) {
-            BOOST_CHECK_EQUAL(value, 42);
-            complete = true;
-         },
-         [&]() {
-            BOOST_CHECK(false);
-         });
-
-      BOOST_CHECK(!complete);
-
-      p.settle(42);
-      BOOST_CHECK(complete);
-   }
-
-   {
-      bool complete = false;
-      Promise p(
-         [&](int value) {
-            BOOST_CHECK(false);
-         },
-         [&](const std::exception_ptr& e) {
-            BOOST_CHECK_THROW(std::rethrow_exception(e), std::runtime_error);
-            complete = true;
-         });
-
-      BOOST_CHECK(!complete);
-
-      p.settle(std::make_exception_ptr(std::runtime_error("")));
-      BOOST_CHECK(complete);
-   }
+   Promise::setUndeliveredExceptionHandler(originalHandler);
 }
 
 static bool thenCalled = false;

@@ -262,6 +262,11 @@ poolqueue::Promise::Promise()
    static_assert(std::is_nothrow_move_assignable<Promise>::value, "noexcept assign");
 }
 
+poolqueue::Promise::Promise(Promise&& other) noexcept
+   : pimpl(std::make_shared<Pimpl>()) {
+   pimpl.swap(other.pimpl);
+}
+
 poolqueue::Promise::Promise(detail::CallbackWrapper *onFulfil, detail::CallbackWrapper *onReject)
    : pimpl(std::make_shared<Pimpl>()) {
    pimpl->onFulfil_.reset(onFulfil);
@@ -273,6 +278,12 @@ poolqueue::Promise::~Promise() noexcept {
 
 Promise&
 poolqueue::Promise::close() {
+   pimpl->close();
+   return *this;
+}
+
+const Promise&
+poolqueue::Promise::close() const {
    pimpl->close();
    return *this;
 }
