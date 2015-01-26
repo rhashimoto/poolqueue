@@ -17,7 +17,7 @@ int main() {
             auto endTime = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - bgnTime);
             assert(elapsed >= std::chrono::milliseconds(100));
-            std::cout << "actual delay " << elapsed.count() << " seconds\n";
+            std::cout << "actual delay " << elapsed.count() << " milliseconds\n";
          },
          []() {
             // Would get here if cancelled.
