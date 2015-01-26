@@ -2,6 +2,10 @@
 #define BOOST_TEST_MODULE ThreadPool
 
 #include <iostream>
+#include <mutex>
+#include <set>
+#include <thread>
+#include <boost/format.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "ThreadPool.hpp"
@@ -92,14 +96,54 @@ BOOST_AUTO_TEST_CASE(count) {
    BOOST_CHECK_THROW(tp.setThreadCount(0), std::invalid_argument);
    BOOST_CHECK_THROW(tp.setThreadCount(-1), std::invalid_argument);
 
-   for (int i = 1; i < 100; ++i) {
+   std::mutex mutex;
+   for (int i = 1; i < 32; ++i) {
       tp.setThreadCount(i);
       BOOST_CHECK_EQUAL(tp.getThreadCount(), i);
+
+      // Try to run a function on every thread. This isn't guaranteed
+      // to work but hopefully it will.
+      std::set<std::thread::id> threadIds;
+      for (int j = 0; j < 2*i; ++j) {
+         tp.post([&]() {
+               std::unique_lock<std::mutex> lock(mutex);
+               const auto index = tp.index();
+               BOOST_CHECK_GE(index, 0);
+               BOOST_CHECK_LT(index, i);
+               threadIds.insert(std::this_thread::get_id());
+               lock.unlock();
+
+               std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            });
+      }
       
-      for (int j = 0; j < 2*i; ++j)
-         tp.post([]() {});
+      tp.synchronize().wait();
+      BOOST_WARN_EQUAL(threadIds.size(), i);
    }
 
-   tp.synchronize().wait();
    tp.setThreadCount(nThreads);
+}
+
+BOOST_AUTO_TEST_CASE(performance) {
+   poolqueue::ThreadPool tp;
+
+   // Measure how quickly n null functions can be queued and executed.
+   size_t n = 1;
+   auto elapsed = std::chrono::microseconds(0);
+   do {
+      auto bgnTime = std::chrono::steady_clock::now();
+      for (size_t i = 0; i < n; ++i) {
+         tp.post([]() {
+            });
+      }
+      tp.synchronize().wait();
+      auto endTime = std::chrono::steady_clock::now();
+
+      elapsed = std::chrono::duration_cast<decltype(elapsed)>(endTime - bgnTime);
+      std::cout << boost::format("%12d functions in %.6f seconds\n")
+         % n
+         % static_cast<double>(elapsed.count()/1000000.0);
+
+      n *= 2;
+   } while (elapsed < std::chrono::seconds(1));
 }
