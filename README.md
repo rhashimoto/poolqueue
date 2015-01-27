@@ -13,6 +13,17 @@ function objects) and `std::promise` provides *blocking*
 synchronization (or polling). Both have their uses and one is not a
 direct replacement for the other.
 
+`boost::future` provides a
+[`then()` method](http://www.boost.org/doc/libs/1_57_0/doc/html/thread/synchronization.html#thread.synchronization.futures.then)
+which is non-blocking and is closer in spirit to PoolQueue. Unlike
+PoolQueue, however, `boost::future` continuations work with non-shared
+futures, which limits the topology of dependent actions to a single
+chain instead of a tree (`then()` can be invoked only once on a
+`boost::future` instance). This permits certain implementation
+optimizations but also restricts applications. PoolQueue uses the
+*closed* `Promise` concept to recover some (though not all) of those
+optimization opportunities.
+
 PoolQueue is developed by Shoestring Research, LLC and is available
 under the [Apache License Version
 2.0](http://www.apache.org/licenses/LICENSE-2.0).
