@@ -2,6 +2,7 @@
 #define BOOST_TEST_MODULE ThreadPool
 
 #include <iostream>
+#include <future>
 #include <mutex>
 #include <set>
 #include <thread>
@@ -38,20 +39,44 @@ BOOST_AUTO_TEST_CASE(basic) {
 
 BOOST_AUTO_TEST_CASE(promise) {
    poolqueue::ThreadPool tp;
-   
-   bool complete = false;
-   tp.post(
-      [&tp]() {
-         BOOST_CHECK_GE(tp.index(), 0);
-         return 42;
-      })
-      .then([&complete](int i) {
-         BOOST_CHECK_EQUAL(i, 42);
-         complete = true;
-         });
 
-   tp.synchronize().wait();
-   BOOST_CHECK(complete);
+   {
+      bool complete = false;
+      tp.post(
+         [&tp]() {
+            BOOST_CHECK_GE(tp.index(), 0);
+            return 42;
+         })
+         .then([&complete](int i) {
+               BOOST_CHECK_EQUAL(i, 42);
+               complete = true;
+            });
+
+      tp.synchronize().wait();
+      BOOST_CHECK(complete);
+   }
+
+   {
+      bool complete = false;
+      tp.post(
+         [&tp]() {
+            BOOST_CHECK_GE(tp.index(), 0);
+            throw std::runtime_error("foo");
+         })
+         .except([&complete](const std::exception_ptr& e) {
+               try {
+                  if (e)
+                     std::rethrow_exception(e);
+               }
+               catch(const std::exception& e) {
+                  BOOST_CHECK_EQUAL(e.what(), std::string("foo"));
+                  complete = true;
+               }
+            });
+
+      tp.synchronize().wait();
+      BOOST_CHECK(complete);
+   }
 }
 
 BOOST_AUTO_TEST_CASE(post) {
@@ -66,14 +91,14 @@ BOOST_AUTO_TEST_CASE(post) {
       });
 
    promise.get_future().wait();
-   tp.synchronize().wait();
 }
 
 BOOST_AUTO_TEST_CASE(dispatch) {
    poolqueue::ThreadPool tp;
    
    // Verify synchronous dispatch.
-   tp.post([&tp]() {
+   std::promise<void> promise;
+   tp.post([&tp, &promise]() {
          static int value;
          value = 0xdeadbeef;
          std::thread::id tid = std::this_thread::get_id();
@@ -81,12 +106,13 @@ BOOST_AUTO_TEST_CASE(dispatch) {
          tp.dispatch([&]() {
                BOOST_CHECK_EQUAL(value, 0xdeadbeef);
                BOOST_CHECK_EQUAL(tid, std::this_thread::get_id());
+               promise.set_value();
             });
 
          value = 0;
       });
 
-   tp.synchronize().wait();
+   promise.get_future().wait();
 }
 
 BOOST_AUTO_TEST_CASE(count) {
