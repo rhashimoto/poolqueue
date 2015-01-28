@@ -77,10 +77,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    
    Pimpl()
       : upstream_(nullptr)
-      , value_(Unset())
-      , closed_(false)
-      , undeliveredException_(false) {
+      , value_(Unset()) {
+      closed_.store(false, std::memory_order_relaxed);
       settled_.store(std::thread::id(), std::memory_order_relaxed);
+      undeliveredException_.store(false, std::memory_order_relaxed);
    }
 
    Pimpl(const Pimpl& other) = delete;
@@ -88,6 +88,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    ~Pimpl() {
       // Pass undelivered exceptions to the handler.
       if (undeliveredException_.load(std::memory_order_relaxed) && undeliveredExceptionHandler) {
+         std::atomic_thread_fence(std::memory_order_acquire);
          std::lock_guard<decltype(mutex_)> lock(mutex_);
          undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
       }
@@ -264,7 +265,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          else
             value_ = value;
 
-         // Local update is complete.
+         // Local update is complete. This store has release semantics
+         // so threads that acquire settled_ can access updates to value_.
          settled_ = std::this_thread::get_id();
 
          if (!downstream_.empty()) {
