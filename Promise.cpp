@@ -201,12 +201,15 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          // would be arbitrary whether the closing call came first
          // (making the other call invalid), or second (making the
          // other call valid).
-         next->settle(std::move(value_));
+         next->settle(std::move(value_), false);
       }
    }
 
    // Set promise value.
-   void settle(Value&& value) {
+   void settle(Value&& value, bool direct) {
+      if (direct && value_.type() != typeid(Unset))
+         throw std::logic_error("Promise already settled");
+
       // Pass value through appropriate callback if present.
       Value cbValue{Unset()};
       if (onFulfil_ && value.type() != typeid(std::exception_ptr)) {
@@ -236,22 +239,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          }
       }
 
-      // Discard callbacks so they cannot be used again.
-      onFulfil_.reset();
-      onReject_.reset();
-      
       if (cbValue.type() != typeid(Promise)) {
-         // If a callback transformed the value, move it.
-         // If the value came from upstream, copy it.
-         // If the value came from the user, move it.
-         assert(value_.type() == typeid(Unset));
-         if (cbValue.type() != typeid(Unset))
-            value_.swap(cbValue);
-         else if (upstream_)
-            value_ = value;
-         else
-            value_.swap(value);
-
          // Access to downstream_ is exclusive when closed so the
          // lock can be avoided in that state (testing closed_ has
          // acquire semantics so downstream_ is valid). When not
@@ -262,14 +250,27 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          if (!closed)
             lock.lock();
 
+         if (direct && upstream_)
+            throw std::logic_error("invalid operation on dependent Promise");
+         upstream_ = nullptr;
+
+         // If a callback transformed the value, move it.
+         // If the value came from the user, move it.
+         // If the value came from upstream, copy it.
+         if (cbValue.type() != typeid(Unset))
+            value_.swap(cbValue);
+         else if (direct)
+            value_.swap(value);
+         else
+            value_ = value;
+
          // Local update is complete.
          settled_ = std::this_thread::get_id();
-         upstream_ = nullptr;
 
          if (!downstream_.empty()) {
             // Propagate settlement to dependent Promises.
             for (const auto& child : downstream_)
-               child->settle(std::move(value_));
+               child->settle(std::move(value_), false);
          }
          else if (value_.type() == typeid(std::exception_ptr)) {
             // The value contains an undelivered exception. If it
@@ -283,6 +284,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          }
       }
       else {
+         // Discard callbacks so they cannot be used again.
+         onFulfil_.reset();
+         onReject_.reset();
+      
          // Make a returned Promise the new upstream.
          auto& p = cbValue.cast<Promise&>();
          p.pimpl->link(shared_from_this());
@@ -350,11 +355,7 @@ poolqueue::Promise::setBadCastExceptionHandler(const BadCastHandler& handler) {
 
 void
 poolqueue::Promise::settle(Value&& value) const {
-   if (pimpl->value_.type() != typeid(Unset))
-      throw std::logic_error("Promise already settled");
-   if (pimpl->upstream_)
-      throw std::logic_error("invalid operation on dependent Promise");
-   pimpl->settle(std::move(value));
+   pimpl->settle(std::move(value), true);
 }
 
 void
