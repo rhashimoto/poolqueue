@@ -20,6 +20,7 @@ limitations under the License.
 #include <thread>
 
 #include "Promise.hpp"
+#include "ThreadPool_detail.hpp"
 
 namespace poolqueue {
 
