@@ -12,7 +12,7 @@
 #include "ThreadPool.hpp"
 
 BOOST_AUTO_TEST_CASE(basic) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
    BOOST_CHECK_EQUAL(tp.index(), -1);
 
    int count = 0;
@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(basic) {
 }
 
 BOOST_AUTO_TEST_CASE(promise) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
 
    {
       bool complete = false;
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE(promise) {
 }
 
 BOOST_AUTO_TEST_CASE(post) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
    
    // Make sure that threads can post.
    std::promise<void> promise;
@@ -94,7 +94,7 @@ BOOST_AUTO_TEST_CASE(post) {
 }
 
 BOOST_AUTO_TEST_CASE(dispatch) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
    
    // Verify synchronous dispatch.
    std::promise<void> promise;
@@ -116,7 +116,7 @@ BOOST_AUTO_TEST_CASE(dispatch) {
 }
 
 BOOST_AUTO_TEST_CASE(count) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
    
    const int nThreads = tp.getThreadCount();
    BOOST_CHECK_THROW(tp.setThreadCount(0), std::invalid_argument);
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(count) {
 }
 
 BOOST_AUTO_TEST_CASE(performance) {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
 
    // Measure how quickly n null functions can be queued and executed.
    size_t n = 1;

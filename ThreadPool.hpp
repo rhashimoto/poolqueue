@@ -16,10 +16,12 @@ limitations under the License.
 #ifndef poolqueue_ThreadPool_hpp
 #define poolqueue_ThreadPool_hpp
 
+#include <cassert>
 #include <deque>
 #include <map>
 #include <future>
 #include <thread>
+#include <vector>
 
 #include "Promise.hpp"
 #include "ThreadPool_detail.hpp"
@@ -28,8 +30,21 @@ namespace poolqueue {
 
    // Thread pool using Promises.
    //
-   // This class contains static member functions to access and
-   // control a basic thread pool built using Promises.
+   // This template class implements a ThreadPool that schedules
+   // function objects and returns Promises that settle when the
+   // associated function completes execution.
+   //
+   // The template argument selects a thread-safe queue class (in
+   // certain situations a LIFO queue is preferable to the default
+   // FIFO queue). It must be a default-constructible class with
+   // methods:
+   //
+   //   bool push(Promise& p);
+   //   bool pop(Promise& p);
+   //
+   // push() should return true if the queue was empty. pop() should
+   // return true if successful.
+   template<typename Q = detail::ConcurrentQueue<Promise> >
    class ThreadPool {
    public:
       // Construct a pool.
@@ -145,6 +160,8 @@ namespace poolqueue {
       // block until the queue is flushed, but only if not on a
       // ThreadPool thread (otherwise deadlock will occur).
       //
+      // This works correctly only with a FIFO queue.
+      //
       // @return Future whose result is set when the queue is empty.
       std::shared_future<void> synchronize() {
          // Return a completed future if there are no threads.
@@ -185,25 +202,14 @@ namespace poolqueue {
       }
 
    private:
-      struct Pimpl;
+      Q queue_;
+
       std::vector<std::thread> threads_;
       std::deque<std::atomic<bool>> running_;
       std::map<std::thread::id, int> ids_;
       
       std::mutex mutex_;
       std::condition_variable condition_;
-
-      detail::ConcurrentQueue<Promise> queue_;
-
-      template<typename P>
-      bool push(P&& p) {
-         return queue_.push(std::forward<P>(p));
-      }
-
-      template<typename P>
-      bool pop(P& p) {
-         return queue_.pop(p);
-      }
 
       void setThreadCountImpl(size_t n) {
          // Add threads.
@@ -306,24 +312,22 @@ namespace poolqueue {
       }
 
       void enqueue(Promise& p) {
-         if (queue_.push(p)) {
-            // If the queue was empty, we must take the lock to avoid
-            // the race where all threads have found the queue empty
-            // but not yet issued a wait.
-            std::lock_guard<std::mutex> lock(mutex_);
-            condition_.notify_one();
-         }
-         else {
-            // We don't have to take the lock here because it can't
-            // deadlock. If there are multiple jobs in the queue then
-            // at least one thread is active, the thread to run the
-            // first job. That thread does not need a notification to
-            // run the next job, even if all the other threads miss
-            // the notification (by being just before the wait when
-            // the jobs are added). This may not be optimally parallel
-            // but it should make progress.
-            condition_.notify_one();
-         }
+         // If the queue was empty, we must take the lock to avoid the
+         // race where all threads have found the queue empty but not
+         // yet issued a wait.
+         //
+         // If the queue was not empty we don't have to take the lock
+         // because it can't deadlock. If there are multiple jobs in
+         // the queue then at least one thread is active, the thread
+         // to run the first job. That thread does not need a
+         // notification to run the next job, even if all the other
+         // threads miss the notification (by being just before the
+         // wait when the jobs are added). This may not be optimally
+         // parallel but it should make progress.
+         std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+         if (queue_.push(p))
+            lock.lock();
+         condition_.notify_one();
       }
    };
 

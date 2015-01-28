@@ -10,13 +10,13 @@
 // can be useful, for example, in managing access to a resource
 // without blocking.
 class Strand {
-   poolqueue::ThreadPool& tp_;
+   poolqueue::ThreadPool<>& tp_;
    std::mutex mutex_;
 
    // The last posted task provides the place to add the next task.
    poolqueue::Promise tail_;
 public:
-   Strand(poolqueue::ThreadPool& threadPool)
+   Strand(poolqueue::ThreadPool<>& threadPool)
       : tp_(threadPool)
       , tail_(poolqueue::Promise().settle()) {
    }
@@ -51,7 +51,7 @@ public:
 };
 
 int main() {
-   poolqueue::ThreadPool tp;
+   poolqueue::ThreadPool<> tp;
    Strand strand(tp);
 
    // Schedule a bunch of tasks on the strand. Verify that they

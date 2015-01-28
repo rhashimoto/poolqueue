@@ -2,6 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #include <poolqueue/ThreadPool.hpp>
 
@@ -9,7 +10,7 @@ using poolqueue::ThreadPool;
 using poolqueue::Promise;
 
 int main() {
-   ThreadPool tp;
+   ThreadPool<> tp;
    
    // The default size of the pool is the number of hardware threads.
    std::cout << tp.getThreadCount() << " default threads\n";
