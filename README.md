@@ -28,7 +28,7 @@ PoolQueue is developed by Shoestring Research, LLC and is available
 under the [Apache License Version
 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
-## Promise basics
+## Promise overview
 The [Javascript
 Promises/A+ specification](https://promisesaplus.com/) describes a promise:
 

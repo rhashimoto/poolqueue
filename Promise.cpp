@@ -16,6 +16,7 @@ limitations under the License.
 #include <cassert>
 #include <iostream>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include "Promise.hpp"
@@ -68,7 +69,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    Value value_;
    std::atomic<bool> closed_;
-   std::atomic<bool> settled_;
+   std::atomic<std::thread::id> settled_;
    std::atomic<bool> undeliveredException_;
    
    std::unique_ptr<detail::CallbackWrapper> onFulfil_;
@@ -78,8 +79,8 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
       : upstream_(nullptr)
       , value_(Unset())
       , closed_(false)
-      , settled_(false)
       , undeliveredException_(false) {
+      settled_.store(std::thread::id(), std::memory_order_relaxed);
    }
 
    Pimpl(const Pimpl& other) = delete;
@@ -97,7 +98,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    }
    
    bool settled() const {
-      return settled_.load(std::memory_order_relaxed);
+      return settled_.load(std::memory_order_relaxed) != std::thread::id();
    }
 
    bool closed() const {
@@ -108,8 +109,12 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
    void link(const std::shared_ptr<Pimpl>& next) {
       next->upstream_ = this;
 
-      decltype(downstream_) targets;
-      {
+      bool closed = false;
+      std::thread::id settled = settled_;
+      if (settled == std::thread::id()) {
+         // The Promise is probably not settled (it could have settled
+         // immediately after the check). We need the lock to protect
+         // against concurrent callers to this function and settle().
          std::lock_guard<decltype(mutex_)> lock(mutex_);
 
          // Check type match between upstream callback result and
@@ -135,8 +140,11 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          
          downstream_.push_back(next);
          if (value_.type() != typeid(Unset)) {
-            targets.swap(downstream_);
-
+            // We can get here if the Promise is settled in between
+            // testing settled_ and obtaining the lock. If it did
+            // happen, settle() would have released the lock so
+            // we can access value_.
+            settled = settled_.load(std::memory_order_relaxed);
             if (value_.type() == typeid(std::exception_ptr))
                undeliveredException_.store(false, std::memory_order_relaxed);
          }
@@ -148,22 +156,53 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          // Storing to the atomic closed_ has release semantics so
          // settle() can access downstream_ without taking a lock as
          // long as it reads closed_ with acquire semantics.
-         if (next->onFulfil_ && next->onFulfil_->hasRvalueArgument())
-            closed_ = true;
+         if (next->onFulfil_ && next->onFulfil_->hasRvalueArgument()) {
+            closed_.store(true, std::memory_order_release);
+            closed = true;
+         }
+      }
+      else {
+         // This Promise already has a value so next can immediately
+         // be settled with it. A lock is not neccessary as downstream_
+         // is not used and the previous access of settled_ acquires
+         // value_.
+         if (value_.type() == typeid(std::exception_ptr))
+            undeliveredException_.store(false, std::memory_order_relaxed);
+
+         // A Promise is closed once an onFulfil callback with an rvalue
+         // reference argument has been added because that callback can
+         // steal (i.e. move) the value.
+         //
+         // Release semantics for closed_ are unnecessary because
+         // settle() has already been called and downstream_ is not
+         // modified.
+         if (next->onFulfil_ && next->onFulfil_->hasRvalueArgument()) {
+            closed_.store(true, std::memory_order_relaxed);
+            closed = true;
+         }
       }
 
-      if (!targets.empty()) {
-         assert(targets.size() == 1 && targets.front() == next);
-         propagate(targets);
-      }
-   }
+      if (settled != std::thread::id()) {
+         std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
+         if (closed && settled != std::this_thread::get_id()) {
+            // This is the problem case where this call has added an
+            // onResolve with an rvalue reference argument to a
+            // settled Promise. We have to ensure that we wait until
+            // any in-progress settlement completes, or else the value
+            // could be stolen from it.
+            lock.lock();
+         }
 
-   // Push value downstream.
-   void propagate(const decltype(downstream_)& targets) {
-      assert(!targets.empty());
-      assert(value_.type() != typeid(Unset));
-      for (const auto& target : targets)
-         target->settle(std::move(value_));
+         // It is possible for two threads to execute this statement
+         // concurrently, which can cause a problem if (1) one of the
+         // calls closed the Promise, and (2) the same call steals the
+         // value before the other uses it. This would be a race bug
+         // in user code even with synchronization, however, as it
+         // would be arbitrary whether the closing call came first
+         // (making the other call invalid), or second (making the
+         // other call valid).
+         next->settle(std::move(value_));
+      }
    }
 
    // Set promise value.
@@ -213,28 +252,25 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
          else
             value_.swap(value);
 
+         // Access to downstream_ is exclusive when closed so the
+         // lock can be avoided in that state (testing closed_ has
+         // acquire semantics so downstream_ is valid). When not
+         // closed there is a possible race with link() so the lock
+         // is required.
+         const bool closed = closed_;
+         std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
+         if (!closed)
+            lock.lock();
+
          // Local update is complete.
-         settled_.store(true, std::memory_order_relaxed);
+         settled_ = std::this_thread::get_id();
          upstream_ = nullptr;
 
-         const bool closed = closed_;
-         decltype(downstream_) targets;
-         {
-            // Access to downstream_ is exclusive when closed so the
-            // lock can be avoided in that state (testing closed_ has
-            // acquire semantics so downstream_ is valid). When not
-            // closed there is a possible race with link() so the lock
-            // is required.
-            std::unique_lock<decltype(mutex_)> lock(mutex_, std::defer_lock);
-            if (!closed)
-               lock.lock();
-            
-            targets.swap(downstream_);
+         if (!downstream_.empty()) {
+            // Propagate settlement to dependent Promises.
+            for (const auto& child : downstream_)
+               child->settle(std::move(value_));
          }
-
-         if (!targets.empty())
-            propagate(targets);
-         
          else if (value_.type() == typeid(std::exception_ptr)) {
             // The value contains an undelivered exception. If it
             // remains undelivered at destruction then the handler
@@ -314,7 +350,7 @@ poolqueue::Promise::setBadCastExceptionHandler(const BadCastHandler& handler) {
 
 void
 poolqueue::Promise::settle(Value&& value) const {
-   if (pimpl->settled())
+   if (pimpl->value_.type() != typeid(Unset))
       throw std::logic_error("Promise already settled");
    if (pimpl->upstream_)
       throw std::logic_error("invalid operation on dependent Promise");
