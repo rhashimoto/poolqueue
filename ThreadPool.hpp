@@ -119,9 +119,7 @@ namespace poolqueue {
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
 
-         return [=]() {
-            return dispatch(f);
-         };
+         return std::bind(&ThreadPool::dispatch<const F&>, this, f);
       }
 
       // Get thread index.
@@ -224,43 +222,7 @@ namespace poolqueue {
                for (size_t i = oldCount; i < n; ++i) {
                   // Any of these statements can throw.
                   running_.emplace_back(true);
-                  threads_.emplace_back([this, i] {
-                        {
-                           // Exit cleanly if anything in start up failed.
-                           std::lock_guard<std::mutex> lock(mutex_);
-                           if (i >= running_.size())
-                              return;
-                        }
-         
-                        auto& running = running_[i];
-                        poolqueue::Promise p;
-                        while (running) {
-                           // Attempt to run the next task from the queue.
-                           if (queue_.pop(p)) {
-                              p.settle();
-                           }
-                           else {
-                              // The queue was empty so we will wait
-                              // for a condition notification, which
-                              // requires a lock.
-                              std::unique_lock<std::mutex> lock(mutex_);
-
-                              // Check the queue in case an item was
-                              // added and the notification fired
-                              // before the lock was acquired.
-                              if (queue_.pop(p)) {
-                                 // Don't call user code with the lock.
-                                 lock.unlock();
-                                 p.settle();
-                              }
-
-                              // The queue is now known to be empty.
-                              else if (running) {
-                                 condition_.wait(lock);
-                              }
-                           }
-                        }
-                     });
+                  threads_.emplace_back(std::bind(&ThreadPool::run, this, i));
                   ids[threads_.back().get_id()] = static_cast<int>(i);
                }
 
@@ -328,6 +290,44 @@ namespace poolqueue {
          if (queue_.push(p))
             lock.lock();
          condition_.notify_one();
+      }
+
+      void run(size_t i) {
+         {
+            // Exit cleanly if anything in start up failed.
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (i >= running_.size())
+               return;
+         }
+         
+         auto& running = running_[i];
+         poolqueue::Promise p;
+         while (running) {
+            // Attempt to run the next task from the queue.
+            if (queue_.pop(p)) {
+               p.settle();
+            }
+            else {
+               // The queue was empty so we will wait
+               // for a condition notification, which
+               // requires a lock.
+               std::unique_lock<std::mutex> lock(mutex_);
+
+               // Check the queue in case an item was
+               // added and the notification fired
+               // before the lock was acquired.
+               if (queue_.pop(p)) {
+                  // Don't call user code with the lock.
+                  lock.unlock();
+                  p.settle();
+               }
+
+               // The queue is now known to be empty.
+               else if (running) {
+                  condition_.wait(lock);
+               }
+            }
+         }
       }
    };
 
