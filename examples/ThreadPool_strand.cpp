@@ -9,14 +9,15 @@
 // asynchronously (on the ThreadPool) with no concurrency. This
 // can be useful, for example, in managing access to a resource
 // without blocking.
+template<typename TP>
 class Strand {
-   poolqueue::ThreadPool<>& tp_;
+   TP& tp_;
    std::mutex mutex_;
 
    // The last posted task provides the place to add the next task.
    poolqueue::Promise tail_;
 public:
-   Strand(poolqueue::ThreadPool<>& threadPool)
+   Strand(TP& threadPool)
       : tp_(threadPool)
       , tail_(poolqueue::Promise().settle()) {
    }
@@ -52,7 +53,7 @@ public:
 
 int main() {
    poolqueue::ThreadPool<> tp;
-   Strand strand(tp);
+   Strand<decltype(tp)> strand(tp);
 
    // Schedule a bunch of tasks on the strand. Verify that they
    // execute in order and that they do not overlap.
