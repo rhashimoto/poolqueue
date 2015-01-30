@@ -1,4 +1,4 @@
-AC_INIT(poolqueue, 0.1)
+AC_INIT(poolqueue, 0.1.0)
 AC_CONFIG_SRCDIR([.])
 AM_INIT_AUTOMAKE([no-define foreign])
 
