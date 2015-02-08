@@ -149,10 +149,10 @@ struct poolqueue::MPI::Pimpl {
       Request(boost::mpi::communicator& communicator, int srcRank);
       
       Request(const Request&) = delete;
-      Request(Request&& other) = default;
+      Request(Request&&) = default;
 
       Request& operator=(const Request&) = delete;
-      Request& operator=(Request&& other) = default;
+      Request& operator=(Request&&) = default;
    };
    std::vector<Request> sendRequests_;
    std::vector<Request> recvRequests_;
