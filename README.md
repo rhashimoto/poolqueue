@@ -175,3 +175,10 @@ Additional example code is under examples/:
 
 * [ThreadPool basics](https://github.com/rhashimoto/poolqueue/blob/master/examples/ThreadPool_basics.cpp)
 * [ThreadPool strand](https://github.com/rhashimoto/poolqueue/blob/master/examples/ThreadPool_strand.cpp)
+
+## MPI
+If both MPI and Boost libraries are available then PoolQueue also
+offers remote function and procedure object calls across process
+and/or machine boundaries. Calls on function objects return a
+Promise that settles when the remote call completes; calls on
+procedure objects are fire-and-forget.

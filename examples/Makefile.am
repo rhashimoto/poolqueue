@@ -10,7 +10,7 @@ AM_CPPFLAGS = -I$(top_srcdir) $(BOOST_CPPFLAGS)
 AM_CXXFLAGS = $(STD_THREAD_CXXFLAGS)
 AM_LDFLAGS = $(BOOST_SYSTEM_LDFLAGS)
 
-LIBS = ../libpoolqueue.la $(STD_THREAD_LIBS)
+LDADD = ../libpoolqueue.la $(STD_THREAD_LIBS)
 
 BUILT_SOURCES = poolqueue
 

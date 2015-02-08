@@ -10,4 +10,9 @@ libpoolqueue_la_SOURCES = Promise.cpp Delay.cpp
 otherincludedir = $(includedir)/poolqueue
 otherinclude_HEADERS = Promise.hpp Promise_detail.hpp Delay.hpp ThreadPool.hpp ThreadPool_detail.hpp
 
+if MPI
+libpoolqueue_la_SOURCES += MPI.cpp
+otherinclude_HEADERS += MPI.hpp
+endif
+
 EXTRA_DIST = NOTICE
