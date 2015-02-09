@@ -99,13 +99,39 @@ BOOST_CLASS_EXPORT(ReturnClass);
 
 #include <boost/serialization/string.hpp>
 
-BOOST_AUTO_TEST_CASE(registration) {
+BOOST_AUTO_TEST_CASE(return_class) {
    MPI::registerType<std::string>();
    
    std::promise<void> done;
    MPI::call(0, ReturnClass())
       .then([&](const std::string& s) {
             BOOST_CHECK_EQUAL(s, "how now brown cow");
+            done.set_value();
+         });
+
+   done.get_future().wait();
+}
+
+class ReturnVoid : public Function {
+   friend class boost::serialization::access;
+   template<typename Archive>
+   void serialize(Archive& ar, const unsigned int version) {
+      ar & boost::serialization::base_object<Function>(*this);
+   }
+
+public:
+   ReturnVoid() {}
+
+   Promise operator()() const {
+      return Promise().settle();
+   }
+};
+BOOST_CLASS_EXPORT(ReturnVoid);
+
+BOOST_AUTO_TEST_CASE(return_void) {
+   std::promise<void> done;
+   MPI::call(0, ReturnClass())
+      .then([&]() {
             done.set_value();
          });
 

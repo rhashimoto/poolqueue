@@ -74,14 +74,8 @@ namespace poolqueue {
             ar & tag_;
 
             // Dispatch on type to save Promise::Value.
-            if (!result_.empty()) {
-               auto f = poolqueue::MPI::getSaveFunc(result_.type());
-               f(ar, result_);
-            }
-            else {
-               const int32_t type = -1;
-               ar << type;
-            }
+            auto f = poolqueue::MPI::getSaveFunc(result_.type());
+            f(ar, result_);
          }
 
          void load(poolqueue::MPI::IArchive& ar, unsigned int) {
@@ -92,10 +86,8 @@ namespace poolqueue {
             int32_t type;
             ar >> type;
 
-            if (type >= 0) {
-               auto f = poolqueue::MPI::getLoadFunc(type);
-               f(ar, result_);
-            }
+            auto f = poolqueue::MPI::getLoadFunc(type);
+            f(ar, result_);
          }
          BOOST_SERIALIZATION_SPLIT_MEMBER()
 
@@ -174,9 +166,10 @@ struct poolqueue::MPI::Pimpl {
 #define REGISTER(TYPE)                                  \
       registerType(                                     \
          typeid(TYPE),                                  \
-         &poolqueue::MPI::saveValue<TYPE>,      \
+         &poolqueue::MPI::saveValue<TYPE>,              \
          &poolqueue::MPI::loadValue<TYPE>)
 
+      REGISTER(void);
       REGISTER(bool);
       REGISTER(int8_t);
       REGISTER(int16_t);
