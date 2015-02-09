@@ -34,6 +34,16 @@ Delay_basics_SOURCES = Delay_basics.cpp
 ThreadPool_basics_SOURCES = ThreadPool_basics.cpp
 ThreadPool_strand_SOURCES = ThreadPool_strand.cpp
 
+if HAS_BOOST_MPI
+  AM_LDFLAGS += $(BOOST_MPI_LDFLAGS)
+  LDADD += $(BOOST_MPI_LIBS)
+endif
+
+if HAS_BOOST_SERIALIZATION
+  AM_LDFLAGS += $(BOOST_IOSTREAMS_LDFLAGS) $(BOOST_SERIALIZATION_LDFLAGS)
+  LDADD += $(BOOST_IOSTREAMS_LIBS) $(BOOST_SERIALIZATION_LIBS)
+endif
+
 .PHONY: examples
 examples: $(EXTRA_PROGRAMS)
 
