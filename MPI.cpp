@@ -1,4 +1,5 @@
 // Copyright 2014 Shoestring Research, LLC.  All rights reserved.
+#include <iostream>
 #include <boost/iostreams/device/back_inserter.hpp>
 #ifdef HAVE_LIBZ
 #include <boost/iostreams/filter/zlib.hpp>
@@ -543,6 +544,13 @@ poolqueue::MPI::call(int rank, const Function& f) {
 
 ThreadPool<>&
 poolqueue::MPI::pool() {
+#ifndef HAVE_BOOST_MPI_HPP
+   static bool once = []() {
+      std::cerr << "WARNING: poolqueue library not built with MPI implementation\n";
+      return false;
+   }();
+   boost::ignore_unused_variable_warning(once);
+#endif
    static ThreadPool<> tp;
    return tp;
 }
