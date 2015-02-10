@@ -44,23 +44,28 @@ namespace poolqueue {
    //
    // push() should return true if the queue was empty. pop() should
    // return true if successful.
-   template<typename Q = detail::ConcurrentQueue<Promise> >
-   class ThreadPool {
+   template<typename Q, bool FIFO = true>
+   class ThreadPoolT {
    public:
       // Construct a pool.
       // @nThreads  Number of threads in the pool. The default
       //            is the hardware concurrency.
-      ThreadPool(unsigned int nThreads = 0) {
+      ThreadPoolT(unsigned int nThreads = 0) {
          if (!nThreads)
             nThreads = std::max(std::thread::hardware_concurrency(), 1U);
          setThreadCount(nThreads);
       }
 
+      ThreadPoolT(const ThreadPoolT&) = delete;
+      ThreadPoolT(ThreadPoolT&&) = default;
+      ThreadPoolT& operator=(const ThreadPoolT&) = delete;
+      ThreadPoolT& operator=(ThreadPoolT&&) = default;
+      
       // Destructor.
-      ~ThreadPool() {
+      ~ThreadPoolT() {
          setThreadCountImpl(0);
       }
-      
+
       // Post (enqueue) a job.
       // @f Function or functor to run.
       //
@@ -119,7 +124,7 @@ namespace poolqueue {
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
 
-         return std::bind(&ThreadPool::dispatch<const F&>, this, f);
+         return std::bind(&ThreadPoolT::dispatch<const F&>, this, f);
       }
 
       // Get thread index.
@@ -162,6 +167,9 @@ namespace poolqueue {
       //
       // @return Future whose result is set when the queue is empty.
       std::shared_future<void> synchronize() {
+         if (!FIFO)
+            throw std::logic_error("underlying queue is not FIFO");
+         
          // Return a completed future if there are no threads.
          if (threads_.empty()) {
             std::promise<void> promise;
@@ -222,7 +230,7 @@ namespace poolqueue {
                for (size_t i = oldCount; i < n; ++i) {
                   // Any of these statements can throw.
                   running_.emplace_back(true);
-                  threads_.emplace_back(std::bind(&ThreadPool::run, this, i));
+                  threads_.emplace_back(std::bind(&ThreadPoolT::run, this, i));
                   ids[threads_.back().get_id()] = static_cast<int>(i);
                }
 
@@ -331,6 +339,7 @@ namespace poolqueue {
       }
    };
 
+   typedef ThreadPoolT<detail::ConcurrentQueue<Promise> > ThreadPool;
 } // namespace poolqueue
 
 #endif // poolqueue_ThreadPool_hpp

@@ -153,7 +153,7 @@ when it is executed on one of the threads in the pool:
 
     #include <poolqueue/ThreadPool.hpp>
     ...
-    poolqueue::ThreadPool<> tp;
+    poolqueue::ThreadPool tp;
     poolqueue::Promise p = tp.post(
       []() {
         std::cout << "I'm running in the pool.\n";

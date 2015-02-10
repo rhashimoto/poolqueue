@@ -52,7 +52,7 @@ public:
 };
 
 int main() {
-   poolqueue::ThreadPool<> tp;
+   poolqueue::ThreadPool tp;
    Strand<decltype(tp)> strand(tp);
 
    // Schedule a bunch of tasks on the strand. Verify that they

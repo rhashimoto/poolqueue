@@ -535,7 +535,7 @@ poolqueue::MPI::call(int rank, const Function& f) {
 #endif
 }
 
-ThreadPool<>&
+ThreadPool&
 poolqueue::MPI::pool() {
 #ifndef HAVE_BOOST_MPI_HPP
    static bool once = []() {
@@ -544,7 +544,7 @@ poolqueue::MPI::pool() {
    }();
    boost::ignore_unused_variable_warning(once);
 #endif
-   static ThreadPool<> tp;
+   static ThreadPool tp;
    return tp;
 }
 

@@ -86,7 +86,7 @@ namespace poolqueue {
       // Procedure and Function subclass instances execute on a
       // ThreadPool for each MPI rank. This function provides
       // access to the local pool.
-      static ThreadPool<>& pool();
+      static ThreadPool& pool();
 
       // This invokes a function on the MPI thread for low-level
       // MPI (or boost::mpi) usage, as MPI implementations are
