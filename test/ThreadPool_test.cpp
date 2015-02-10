@@ -1,9 +1,11 @@
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MODULE ThreadPool
 
+#include <cmath>
 #include <iostream>
 #include <future>
 #include <mutex>
+#include <numeric>
 #include <set>
 #include <thread>
 #include <boost/format.hpp>
@@ -34,6 +36,35 @@ BOOST_AUTO_TEST_CASE(basic) {
       })();
 
    tp.synchronize().wait();
+   BOOST_CHECK_EQUAL(count, 3);
+}
+
+BOOST_AUTO_TEST_CASE(stack) {
+   using namespace poolqueue;
+   ThreadPool<detail::ConcurrentStack<Promise> > tp;
+   BOOST_CHECK_EQUAL(tp.index(), -1);
+
+   std::atomic<int> count(0);
+   std::mutex exclusive;
+   tp.post([&]() {
+         std::lock_guard<std::mutex> lock(exclusive);
+         BOOST_CHECK_GE(tp.index(), 0);
+         ++count;
+      });
+   tp.dispatch([&]() {
+         std::lock_guard<std::mutex> lock(exclusive);
+         BOOST_CHECK_GE(tp.index(), 0);
+         ++count;
+      });
+   tp.wrap([&]() {
+         std::lock_guard<std::mutex> lock(exclusive);
+         BOOST_CHECK_GE(tp.index(), 0);
+         ++count;
+      })();
+
+   // synchronize() won't work because stack is not FIFO.
+   while (count < 3)
+      std::this_thread::yield();
    BOOST_CHECK_EQUAL(count, 3);
 }
 
@@ -148,6 +179,44 @@ BOOST_AUTO_TEST_CASE(count) {
    }
 
    tp.setThreadCount(nThreads);
+}
+
+BOOST_AUTO_TEST_CASE(stress) {
+   poolqueue::ThreadPool<> tp;
+
+   // Post functions from multiple threads.
+   const auto bgnTime = std::chrono::steady_clock::now();
+   std::vector<std::thread> threads;
+   std::vector<uint64_t> nProduced(tp.getThreadCount(), 0);
+   std::vector<uint64_t> nConsumed(tp.getThreadCount(), 0);
+   for (int i = 0; i < tp.getThreadCount(); ++i) {
+      threads.emplace_back([=, &tp, &nProduced, &nConsumed]() {
+           while (std::chrono::steady_clock::now() - bgnTime < std::chrono::seconds(1)) {
+              ++nProduced[i];
+              tp.post([=, &tp, &nConsumed]() {
+                    ++nConsumed[tp.index()];
+                 });
+            }
+         });
+   }
+
+   for (auto& t : threads)
+      t.join();
+   tp.synchronize().wait();
+
+   auto totalProduced = std::accumulate(nProduced.begin(), nProduced.end(), 0);
+   auto totalConsumed = std::accumulate(nConsumed.begin(), nConsumed.end(), 0);
+   BOOST_CHECK_EQUAL(totalProduced, totalConsumed);
+
+   const double mean = static_cast<double>(totalProduced)/nProduced.size();
+   double sigma = 0.0;
+   for (const auto& n : nProduced) {
+      std::cout << n << ' ';
+      sigma += (n - mean)*(n - mean);
+   }
+
+   sigma = std::sqrt(sigma/nProduced.size());
+   std::cout << " mean " << mean << " sigma " << sigma << '\n';;
 }
 
 BOOST_AUTO_TEST_CASE(performance) {

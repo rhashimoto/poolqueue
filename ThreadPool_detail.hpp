@@ -19,6 +19,24 @@ namespace poolqueue {
 
       constexpr size_t CacheLineSize = 64;
       
+      struct SpinLock {
+         std::atomic<bool> locked_;
+         char pad[CacheLineSize - sizeof(std::atomic<bool>)];
+         
+         SpinLock() : locked_(false) {}
+
+         void lock() {
+            while (locked_.exchange(true, std::memory_order_relaxed))
+               ;
+            std::atomic_thread_fence(std::memory_order_acquire);
+         }
+
+         void unlock() {
+            assert(locked_);
+            locked_.store(false, std::memory_order_release);;
+         }
+      };
+      
       // This concurrent queue follows "Simple, Fast, and Practical
       // Non-Blocking and Blocking Concurrent Queue Algorithms" by
       // Michael and Scott, plus tips on cache optimization from "Writing
@@ -29,23 +47,6 @@ namespace poolqueue {
       // minimizing state contention with consumers.
       template<typename T>
       struct ConcurrentQueue {
-         struct SpinLock {
-            std::atomic<bool> locked_;
-            char pad[CacheLineSize - sizeof(std::atomic<bool>)];
-         
-            SpinLock() : locked_(false) {}
-
-            void lock() {
-               while (locked_.exchange(true))
-                  ;
-            }
-
-            void unlock() {
-               assert(locked_);
-               locked_ = false;
-            }
-         };
-      
          struct Node {
             template<typename V>
             Node(V&& value)
@@ -124,6 +125,72 @@ namespace poolqueue {
          union {
             Node *tail_;
             char padTail[CacheLineSize];
+         };
+      };
+
+      template<typename T>
+      struct ConcurrentStack {
+         struct Node {
+            template<typename V>
+            Node(V&& value)
+               : value_(std::forward<V>(value))
+               , next_(nullptr) {
+               static_assert(std::is_same<typename std::decay<V>::type, T>::value,
+                             "inconsistent value type");
+            }
+         
+            T value_;
+            Node * next_;
+            char pad[CacheLineSize - sizeof(T) - sizeof(std::atomic<Node *>)];
+         };
+
+         ConcurrentStack()
+            : head_(nullptr) {
+         }
+
+         ~ConcurrentStack() {
+            while (head_) {
+               Node *node = head_;
+               head_ = node->next_;
+               delete node;
+            }
+         }
+
+         // Prepend a new value to the head of the queue. Returns true if
+         // the queue was empty before the operation.
+         template<typename X>
+         bool push(X&& value) {
+            Node *node = new Node(std::forward<X>(value));
+            std::lock_guard<SpinLock> lock(headLock_);
+            node->next_ = head_;
+            head_ = node;
+            return !node->next_;
+         }
+
+         // Retrieve a value from the head of the queue into the
+         // reference argument. Returns true if successful, i.e. if the
+         // queue was not empty.
+         bool pop(T& result) {
+            using std::swap;
+            std::unique_lock<SpinLock> lock(headLock_);
+            
+            if (Node *node = head_) {
+               swap(result, node->value_);
+               head_ = node->next_;
+
+               lock.unlock();
+               delete node;
+               return true;
+            }
+            return false;
+         }
+
+         // Attempt to put each member variable on its own cache line.
+         char pad[CacheLineSize];
+         SpinLock headLock_;
+         union {
+            Node *head_;
+            char padHead[CacheLineSize];
          };
       };
 
