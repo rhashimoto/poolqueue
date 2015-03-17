@@ -271,7 +271,7 @@ namespace poolqueue {
       };
 
       // Template subclass wrapper for R f(A).
-      template<typename F, typename R, typename A, bool AnyArg>
+      template<typename F, typename R, typename A, bool IsValue, bool IsVector, bool IsTuple>
       class CallbackWrapperT : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
@@ -303,7 +303,7 @@ namespace poolqueue {
 
       // Specialize for void f(A).
       template<typename F, typename A>
-      class CallbackWrapperT<F, void, A, false> : public CallbackWrapper {
+      class CallbackWrapperT<F, void, A, false, false, false> : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
@@ -335,7 +335,7 @@ namespace poolqueue {
          
       // Specialize for R f().
       template<typename F, typename R>
-      class CallbackWrapperT<F, R, void, false> : public CallbackWrapper {
+      class CallbackWrapperT<F, R, void, false, false, false> : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
@@ -363,7 +363,7 @@ namespace poolqueue {
          
       // Specialize for void f().
       template<typename F>
-      class CallbackWrapperT<F, void, void, false> : public CallbackWrapper {
+      class CallbackWrapperT<F, void, void, false, false, false> : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
@@ -392,7 +392,7 @@ namespace poolqueue {
 
       // Specialize for R f(const Any&) or R f(Any&&).
       template<typename F, typename R, typename A>
-      class CallbackWrapperT<F, R, A, true> : public CallbackWrapper {
+      class CallbackWrapperT<F, R, A, true, false, false> : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
@@ -420,7 +420,7 @@ namespace poolqueue {
 
       // Specialize for void f(const Any&) or void f(Any&&).
       template<typename F, typename A>
-      class CallbackWrapperT<F, void, A, true> : public CallbackWrapper {
+      class CallbackWrapperT<F, void, A, true, false, false> : public CallbackWrapper {
          typename std::remove_reference<F>::type f_;
       public:
          CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
@@ -447,6 +447,114 @@ namespace poolqueue {
          }
       };
 
+      // Specialize for R f(const std::vector<T>&) or R f(std::vector<T>&&).
+      template<typename F, typename R, typename A>
+      class CallbackWrapperT<F, R, A, false, true, false> : public CallbackWrapper {
+         typename std::remove_reference<F>::type f_;
+      public:
+         CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
+
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
+         const std::type_info& resultType() const {
+            return typeid(typename std::decay<R>::type);
+         }
+         
+         bool hasRvalueArgument() const {
+            return std::is_rvalue_reference<A>::value;
+         }
+
+         bool hasExceptionPtrArgument() const {
+            return false;
+         }
+
+         Any operator()(Any&& a) const {
+            if (a.type() != typeid(std::vector<Any>)) {
+               typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
+               if (a.type() != typeid(typename std::decay<A>::type))
+                  throw bad_cast(a.type(), typeid(A));
+               return f_(a.cast<type>());
+            }
+            else {
+               typedef typename std::decay<A>::type ABase;
+               std::vector<Any>& av = a.cast<std::vector<Any>&>();
+               const auto n = av.size();
+               typename std::decay<A>::type v(n);
+
+               if (hasRvalueArgument()) {
+                  for (size_t i = 0; i < n; ++i)
+                     v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+               }
+               else {
+                  for (size_t i = 0; i < n; ++i)
+                     v[i] = av[i].cast<const typename ABase::value_type&>();
+               }               
+               return f_(std::move(v));
+            }
+         }
+      };
+
+      // Specialize for void f(const std::vector<T>&) or void f(std::vector<T>&&).
+      template<typename F, typename A>
+      class CallbackWrapperT<F, void, A, false, true, false> : public CallbackWrapper {
+         typename std::remove_reference<F>::type f_;
+      public:
+         CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
+
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
+         const std::type_info& resultType() const {
+            return typeid(void);
+         }
+         
+         bool hasRvalueArgument() const {
+            return std::is_rvalue_reference<A>::value;
+         }
+
+         bool hasExceptionPtrArgument() const {
+            return false;
+         }
+
+         Any operator()(Any&& a) const {
+            if (a.type() != typeid(std::vector<Any>)) {
+               typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
+               if (a.type() != typeid(typename std::decay<A>::type))
+                  throw bad_cast(a.type(), typeid(A));
+               f_(a.cast<type>());
+            }
+            else {
+               typedef typename std::decay<A>::type ABase;
+               std::vector<Any>& av = a.cast<std::vector<Any>&>();
+               const auto n = av.size();
+               typename std::decay<A>::type v(n);
+
+               if (hasRvalueArgument()) {
+                  for (size_t i = 0; i < n; ++i)
+                     v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+               }
+               else {
+                  for (size_t i = 0; i < n; ++i)
+                     v[i] = av[i].cast<const typename ABase::value_type&>();
+               }               
+               f_(std::move(v));
+            }
+
+            return Any();
+         }
+      };
+
+      template<template<typename...> class TT, typename T>
+      struct is_instantiation_of : std::false_type {
+      };
+
+      template<template<typename...> class TT, typename... Ts>
+      struct is_instantiation_of<TT, TT<Ts...> > : std::true_type {
+      };
+      
       template<typename F>
       CallbackWrapper *makeCallbackWrapper(F&& f) {
          typedef typename CallableTraits<F>::ResultType R;
@@ -462,13 +570,16 @@ namespace poolqueue {
          constexpr bool isValueRvalueRef = std::is_rvalue_reference<A>::value;
          static_assert(!isValue || isValueConstRef || isValueRvalueRef,
                        "Promise callback can take const Value& or Value&&.");
-            
+
+         constexpr bool isVector = is_instantiation_of<std::vector, typename std::decay<A>::type>::value;
+         constexpr bool isTuple = is_instantiation_of<std::tuple, typename std::decay<A>::type>::value;
+         
          constexpr bool isException = std::is_same<typename std::decay<A>::type, std::exception_ptr>::value;
          constexpr bool isExceptionConstRef = std::is_same<A, const std::exception_ptr&>::value;
          static_assert(!isException || isExceptionConstRef,
                        "Promise callback can take const std::exception_ptr&.");
             
-         return new CallbackWrapperT<F, typename std::decay<R>::type, A, isValue>(std::forward<F>(f));
+         return new CallbackWrapperT<F, typename std::decay<R>::type, A, isValue, isVector, isTuple>(std::forward<F>(f));
       }
 
       struct NullFulfil {

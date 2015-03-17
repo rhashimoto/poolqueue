@@ -772,10 +772,11 @@ BOOST_AUTO_TEST_CASE(all) {
 
       size_t complete = 0;
       Promise all = Promise::all(v.begin(), v.end());
-      all.then([&]() {
+      all.then([&](const std::vector<size_t>& results) {
+            BOOST_CHECK_EQUAL(v.size(), results.size());
             for (size_t i = 0; i < v.size(); ++i) {
-               v[i].then([=, &complete](size_t value) {
-                     BOOST_CHECK_EQUAL(value, i);
+               v[i].then([=, &complete, &results](size_t value) {
+                     BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
                   });
             }
@@ -794,11 +795,13 @@ BOOST_AUTO_TEST_CASE(all) {
 
       size_t complete = 0;
       Promise all = Promise::all(v.begin(), v.end());
-      all.then([&]() {
+      all.then([&](const std::vector<size_t>& results) {
+            BOOST_CHECK_EQUAL(v.size(), results.size());
             for (size_t i = 0; i < v.size(); ++i) {
-               v[i].then([=, &complete](size_t value) {
-                     BOOST_CHECK_EQUAL(value, i);
+               v[i].then([=, &complete, &results](size_t value) {
+                     BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
+                     return 0;
                   });
             }
          });
