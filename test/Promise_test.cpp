@@ -873,3 +873,100 @@ BOOST_AUTO_TEST_CASE(all) {
       BOOST_CHECK_EQUAL(complete, 4);
    }
 }
+
+BOOST_AUTO_TEST_CASE(race) {
+   {
+      std::vector<Promise> v;
+
+      size_t complete = 0;
+      Promise race = Promise::race(v.begin(), v.end());
+      race.except([&]() {
+            for (size_t i = 0; i < v.size(); ++i) {
+               v[i].except([=, &complete]() {
+                     ++complete;
+                  });
+            }
+         });
+
+      for (size_t i = 0; i < v.size(); ++i)
+         v[i].settle(std::make_exception_ptr(std::runtime_error("")));
+
+      BOOST_CHECK_EQUAL(complete, v.size());
+   }
+
+   {
+      std::vector<Promise> v;
+      for (int i = 0; i < 4; ++i)
+         v.push_back(Promise());
+
+      size_t complete = 0;
+      Promise race = Promise::race(v.begin(), v.end());
+      race.except([&]() {
+            for (size_t i = 0; i < v.size(); ++i) {
+               v[i].except([=, &complete]() {
+                     ++complete;
+                  });
+            }
+         });
+
+      for (size_t i = 0; i < v.size(); ++i) {
+         v[i].settle(std::make_exception_ptr(std::runtime_error("")));
+         if (i + 1 < v.size())
+            BOOST_CHECK(!race.settled());
+         else
+            BOOST_CHECK(race.settled());
+      }
+      BOOST_CHECK_EQUAL(complete, v.size());
+   }
+
+   {
+      std::vector<Promise> v;
+      for (int i = 0; i < 4; ++i)
+         v.push_back(Promise());
+
+      bool complete = false;
+      Promise race = Promise::race(v.begin(), v.end());
+      race.then([&](const std::string& s) {
+            BOOST_CHECK_EQUAL(s, std::string("foo"));
+            complete = true;
+         });
+
+      for (size_t i = 1; i < v.size(); ++i)
+         v[i].settle(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK(!race.settled());
+      
+      v[0].settle(std::string("foo"));
+      BOOST_CHECK(race.settled());            
+      BOOST_CHECK(complete);
+   }
+
+   {
+      Promise p0, p1, p2, p3;
+
+      int complete = 0;
+      Promise race = Promise::race({p0, p1, p2, p3});
+      race.except([&]() {
+            p0.except([&]() {
+                  ++complete;
+               });
+            p1.except([&]() {
+                  ++complete;
+               });
+            p2.except([&]() {
+                  ++complete;
+               });
+            p3.except([&]() {
+                  ++complete;
+               });
+         });
+
+      p0.settle(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK_EQUAL(complete, 0);
+      p1.settle(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK_EQUAL(complete, 0);
+      p2.settle(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK_EQUAL(complete, 0);
+      p3.settle(std::make_exception_ptr(std::runtime_error("")));
+      BOOST_CHECK_EQUAL(complete, 4);
+   }
+}

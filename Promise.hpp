@@ -273,6 +273,64 @@ namespace poolqueue {
          return all(promises.begin(), promises.end());
       }
 
+      // Fulfil with first Promise of iterator range to fulfil.
+      // @bgn Begin iterator.
+      // @end End iterator.
+      //
+      // This static function returns a Promise that fulfils when
+      // at least one of the Promises in the input range fulfils,
+      // or rejects when all of the Promises in the input range
+      // reject.
+      //
+      // If the returned Promise rejects, the std::exception_ptr
+      // argument does not contain an exception.
+      //
+      // @return Dependent Promise that fulfils on any or rejects
+      //         on all.
+      template<typename Iterator>
+      static Promise race(Iterator bgn, Iterator end) {
+         Promise p;
+         if (const size_t n = std::distance(bgn, end)) {
+            auto count = std::make_shared<std::atomic<size_t>>(n);
+            auto fulfilled = std::make_shared<std::atomic<bool>>(false);
+            for (auto i = bgn; i != end; ++i) {
+               i->then(
+                  [=](const Value& value) {
+                     if (!fulfilled->exchange(true, std::memory_order_relaxed))
+                        p.settle(value);
+                  },
+                  [=](const std::exception_ptr&) {
+                     if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
+                        p.settle(std::exception_ptr());
+                     }
+                  });
+            }
+         }
+         else {
+            // Range is empty so reject immediately.
+            p.settle(std::exception_ptr());
+         }
+            
+         return p;
+      }
+      
+      // Fulfil with first Promise of initializer list to fulfil.
+      // @promises Input promises.
+      //
+      // This static function returns a Promise that fulfils when
+      // at least one of the Promises in the input list fulfils,
+      // or rejects when all of the Promises in the input list
+      // reject.
+      //
+      // If the returned Promise rejects, the std::exception_ptr
+      // argument does not contain an exception.
+      //
+      // @return Dependent Promise that fulfils on any or rejects
+      //         on all.
+      static Promise race(std::initializer_list<Promise> promises) {
+         return race(promises.begin(), promises.end());
+      }
+      
       // Set undelivered exception handler.
       // @handler Has signature void handler(const std::exception_ptr&).
       //
