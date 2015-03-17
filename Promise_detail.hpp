@@ -24,6 +24,30 @@ namespace poolqueue {
 
    namespace detail {
 
+      class bad_cast : public std::bad_cast {
+         const std::type_info& from_;
+         const std::type_info& to_;
+         std::string message_;
+      public:
+         bad_cast(const std::type_info& from, const std::type_info& to)
+            : from_(from)
+            , to_(to) {
+            message_ = std::string("failed cast from ") + from_.name() + " to " + to_.name();
+         }
+
+         const std::type_info& from() const {
+            return from_;
+         }
+
+         const std::type_info& to() const {
+            return to_;
+         }
+            
+         virtual const char *what() const noexcept {
+            return message_.c_str();
+         }
+      };
+
       class Any {
          class Holder {
          public:
@@ -158,7 +182,7 @@ namespace poolqueue {
             constexpr bool isCopyable = std::is_copy_constructible<DecayType>::value;
             auto *holder = dynamic_cast<HolderT<DecayType, isCopyable> *>(holder_);
             if (!holder)
-               throw std::bad_cast();
+               throw bad_cast(type(), typeid(DecayType));
             return static_cast<T>(holder->get());
          }
 
@@ -169,7 +193,7 @@ namespace poolqueue {
             constexpr bool isCopyable = std::is_copy_constructible<DecayType>::value;
             auto *holder = dynamic_cast<const HolderT<DecayType, isCopyable> *>(holder_);
             if (!holder)
-               throw std::bad_cast();
+               throw bad_cast(type(), typeid(DecayType));
             return static_cast<const T&>(holder->get());
          }
       };
@@ -236,30 +260,6 @@ namespace poolqueue {
       struct CallableTraits : public std::conditional<std::is_function<typename std::remove_pointer<F>::type>::value, FunctionTraits<F>, FunctorTraits<F> >::type {
       };
 
-      class bad_cast : public std::bad_cast {
-         const std::type_info& from_;
-         const std::type_info& to_;
-         std::string message_;
-      public:
-         bad_cast(const std::type_info& from, const std::type_info& to)
-            : from_(from)
-            , to_(to) {
-            message_ = std::string("failed cast from ") + from_.name() + " to " + to_.name();
-         }
-
-         const std::type_info& from() const {
-            return from_;
-         }
-
-         const std::type_info& to() const {
-            return to_;
-         }
-            
-         virtual const char *what() const noexcept {
-            return message_.c_str();
-         }
-      };
-
       class CallbackWrapper {
       public:
          virtual ~CallbackWrapper() {}
@@ -296,8 +296,6 @@ namespace poolqueue {
 
          Any operator()(Any&& a) const {
             typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-            if (a.type() != typeid(typename std::decay<A>::type))
-               throw bad_cast(a.type(), typeid(A));
             return f_(a.cast<type>());
          }
       };
@@ -327,8 +325,6 @@ namespace poolqueue {
 
          Any operator()(Any&& a) const {
             typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-            if (a.type() != typeid(typename std::decay<A>::type))
-               throw bad_cast(a.type(), typeid(A));
             f_(a.cast<type>());
             return Any();
          }
@@ -474,8 +470,6 @@ namespace poolqueue {
          Any operator()(Any&& a) const {
             if (a.type() != typeid(std::vector<Any>)) {
                typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-               if (a.type() != typeid(typename std::decay<A>::type))
-                  throw bad_cast(a.type(), typeid(A));
                return f_(a.cast<type>());
             }
             else {
@@ -486,18 +480,12 @@ namespace poolqueue {
                ABase v(n);
 
                if (hasRvalueArgument()) {
-                  for (size_t i = 0; i < n; ++i) {
-                     if (av[i].type() != typeid(ElementType))
-                        throw bad_cast(av[i].type(), typeid(ElementType));
+                  for (size_t i = 0; i < n; ++i)
                      v[i] = std::move(av[i].cast<typename ABase::value_type&>());
-                  }
                }
                else {
-                  for (size_t i = 0; i < n; ++i) {
-                     if (av[i].type() != typeid(ElementType))
-                        throw bad_cast(av[i].type(), typeid(ElementType));
+                  for (size_t i = 0; i < n; ++i)
                      v[i] = av[i].cast<const typename ABase::value_type&>();
-                  }
                }               
                return f_(std::move(v));
             }
@@ -530,8 +518,6 @@ namespace poolqueue {
          Any operator()(Any&& a) const {
             if (a.type() != typeid(std::vector<Any>)) {
                typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-               if (a.type() != typeid(typename std::decay<A>::type))
-                  throw bad_cast(a.type(), typeid(A));
                f_(a.cast<type>());
             }
             else {
@@ -542,18 +528,12 @@ namespace poolqueue {
                ABase v(n);
 
                if (hasRvalueArgument()) {
-                  for (size_t i = 0; i < n; ++i) {
-                     if (av[i].type() != typeid(ElementType))
-                        throw bad_cast(av[i].type(), typeid(ElementType));
+                  for (size_t i = 0; i < n; ++i)
                      v[i] = std::move(av[i].cast<typename ABase::value_type&>());
-                  }
                }
                else {
-                  for (size_t i = 0; i < n; ++i) {
-                     if (av[i].type() != typeid(ElementType))
-                        throw bad_cast(av[i].type(), typeid(ElementType));
+                  for (size_t i = 0; i < n; ++i)
                      v[i] = av[i].cast<const typename ABase::value_type&>();
-                  }
                }               
                f_(std::move(v));
             }
@@ -571,8 +551,6 @@ namespace poolqueue {
       inline typename std::enable_if<I < sizeof...(Tp), void>::type
       copy_tuple(std::tuple<Tp...>& t, std::vector<Any>::const_iterator i) {
          typedef typename std::tuple_element<I, std::tuple<Tp...> >::type ElementType;
-         if (i->type() != typeid(ElementType))
-            throw bad_cast(i->type(), typeid(ElementType));
          std::get<I>(t) = i->cast<const ElementType&>();
          copy_tuple<I + 1, Tp...>(t, ++i);
       }
@@ -586,8 +564,6 @@ namespace poolqueue {
       inline typename std::enable_if<I < sizeof...(Tp), void>::type
       move_tuple(std::tuple<Tp...>& t, std::vector<Any>::iterator i) {
          typedef typename std::tuple_element<I, std::tuple<Tp...> >::type ElementType;
-         if (i->type() != typeid(ElementType))
-            throw bad_cast(i->type(), typeid(ElementType));
          std::get<I>(t) = std::move(i->cast<ElementType&>());
          move_tuple<I + 1, Tp...>(t, ++i);
       }
@@ -618,8 +594,6 @@ namespace poolqueue {
          Any operator()(Any&& a) const {
             if (a.type() != typeid(std::vector<Any>)) {
                typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-               if (a.type() != typeid(typename std::decay<A>::type))
-                  throw bad_cast(a.type(), typeid(A));
                return f_(a.cast<type>());
             }
             else {
@@ -663,8 +637,6 @@ namespace poolqueue {
          Any operator()(Any&& a) const {
             if (a.type() != typeid(std::vector<Any>)) {
                typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
-               if (a.type() != typeid(typename std::decay<A>::type))
-                  throw bad_cast(a.type(), typeid(A));
                f_(a.cast<type>());
             }
             else {
