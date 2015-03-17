@@ -24,16 +24,22 @@ int main() {
    assert(!pA.settled());
    promises[0].settle(std::string("bar"));
    assert(pA.settled());
-   pA.then([]() {
-         std::cout << "pA fulfils\n";
+
+   // The results from input Promises may be retrieved as a
+   // std::vector (if all input Promises return the same type)...
+   pA.then([](const std::vector<std::string>& results) {
+         std::cout << "pA fulfils with vector "
+                   << results[0] << ", "
+                   << results[1] << '\n';;
       });
 
-#if 0
-   // DON'T DO THIS - onFulfil callbacks attached to a Promise::all()
-   // Promise should not take an argument.
-   pA.then([](const std::string& s) {
+   // ...or as a std::tuple (if the number of input Promises
+   // and their return types are known at compile time).
+   pA.then([](const std::tuple<std::string, std::string>& results) {
+         std::cout << "pA fulfils with tuple "
+                   << std::get<0>(results) << ", "
+                   << std::get<1>(results) << '\n';;
       });
-#endif
    
    // An all Promise rejects when any input Promise rejects. The
    // result is propagated from the first input Promise to reject.

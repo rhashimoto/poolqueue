@@ -18,6 +18,7 @@ limitations under the License.
 #include <string>
 #include <typeinfo>
 #include <utility>
+#include <vector>
 
 namespace poolqueue {
 
@@ -479,17 +480,24 @@ namespace poolqueue {
             }
             else {
                typedef typename std::decay<A>::type ABase;
+               typedef typename ABase::value_type ElementType;
                std::vector<Any>& av = a.cast<std::vector<Any>&>();
                const auto n = av.size();
-               typename std::decay<A>::type v(n);
+               ABase v(n);
 
                if (hasRvalueArgument()) {
-                  for (size_t i = 0; i < n; ++i)
+                  for (size_t i = 0; i < n; ++i) {
+                     if (av[i].type() != typeid(ElementType))
+                        throw bad_cast(av[i].type(), typeid(ElementType));
                      v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+                  }
                }
                else {
-                  for (size_t i = 0; i < n; ++i)
+                  for (size_t i = 0; i < n; ++i) {
+                     if (av[i].type() != typeid(ElementType))
+                        throw bad_cast(av[i].type(), typeid(ElementType));
                      v[i] = av[i].cast<const typename ABase::value_type&>();
+                  }
                }               
                return f_(std::move(v));
             }
@@ -528,19 +536,148 @@ namespace poolqueue {
             }
             else {
                typedef typename std::decay<A>::type ABase;
+               typedef typename ABase::value_type ElementType;
                std::vector<Any>& av = a.cast<std::vector<Any>&>();
                const auto n = av.size();
-               typename std::decay<A>::type v(n);
+               ABase v(n);
 
                if (hasRvalueArgument()) {
-                  for (size_t i = 0; i < n; ++i)
+                  for (size_t i = 0; i < n; ++i) {
+                     if (av[i].type() != typeid(ElementType))
+                        throw bad_cast(av[i].type(), typeid(ElementType));
                      v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+                  }
                }
                else {
-                  for (size_t i = 0; i < n; ++i)
+                  for (size_t i = 0; i < n; ++i) {
+                     if (av[i].type() != typeid(ElementType))
+                        throw bad_cast(av[i].type(), typeid(ElementType));
                      v[i] = av[i].cast<const typename ABase::value_type&>();
+                  }
                }               
                f_(std::move(v));
+            }
+
+            return Any();
+         }
+      };
+
+      template<std::size_t I = 0, typename... Tp>
+      inline typename std::enable_if<I == sizeof...(Tp), void>::type
+      copy_tuple(std::tuple<Tp...>&, std::vector<Any>::const_iterator) {
+      }
+
+      template<std::size_t I = 0, typename... Tp>
+      inline typename std::enable_if<I < sizeof...(Tp), void>::type
+      copy_tuple(std::tuple<Tp...>& t, std::vector<Any>::const_iterator i) {
+         typedef typename std::tuple_element<I, std::tuple<Tp...> >::type ElementType;
+         if (i->type() != typeid(ElementType))
+            throw bad_cast(i->type(), typeid(ElementType));
+         std::get<I>(t) = i->cast<const ElementType&>();
+         copy_tuple<I + 1, Tp...>(t, ++i);
+      }
+
+      template<std::size_t I = 0, typename... Tp>
+      inline typename std::enable_if<I == sizeof...(Tp), void>::type
+      move_tuple(std::tuple<Tp...>&, std::vector<Any>::iterator) {
+      }
+
+      template<std::size_t I = 0, typename... Tp>
+      inline typename std::enable_if<I < sizeof...(Tp), void>::type
+      move_tuple(std::tuple<Tp...>& t, std::vector<Any>::iterator i) {
+         typedef typename std::tuple_element<I, std::tuple<Tp...> >::type ElementType;
+         if (i->type() != typeid(ElementType))
+            throw bad_cast(i->type(), typeid(ElementType));
+         std::get<I>(t) = std::move(i->cast<ElementType&>());
+         move_tuple<I + 1, Tp...>(t, ++i);
+      }
+
+      // Specialize for R f(const std::tuple<T0, T1...>&) or R f(std::tuple<T0, T1...>&&).
+      template<typename F, typename R, typename A>
+      class CallbackWrapperT<F, R, A, false, false, true> : public CallbackWrapper {
+         typename std::remove_reference<F>::type f_;
+      public:
+         CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
+
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
+         const std::type_info& resultType() const {
+            return typeid(typename std::decay<R>::type);
+         }
+         
+         bool hasRvalueArgument() const {
+            return std::is_rvalue_reference<A>::value;
+         }
+
+         bool hasExceptionPtrArgument() const {
+            return false;
+         }
+
+         Any operator()(Any&& a) const {
+            if (a.type() != typeid(std::vector<Any>)) {
+               typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
+               if (a.type() != typeid(typename std::decay<A>::type))
+                  throw bad_cast(a.type(), typeid(A));
+               return f_(a.cast<type>());
+            }
+            else {
+               typedef typename std::decay<A>::type ABase;
+               std::vector<Any>& at = a.cast<std::vector<Any>&>();
+               ABase t;
+
+               if (hasRvalueArgument())
+                  move_tuple(t, at.begin());
+               else
+                  copy_tuple(t, at.begin());
+               
+               return f_(std::move(t));
+            }
+         }
+      };
+
+      // Specialize for void f(const std::tuple<T0, T1...>&) or void f(std::tuple<T0, T1...>&&).
+      template<typename F, typename A>
+      class CallbackWrapperT<F, void, A, false, false, true> : public CallbackWrapper {
+         typename std::remove_reference<F>::type f_;
+      public:
+         CallbackWrapperT(F&& f) : f_(std::forward<F>(f)) {}
+
+         const std::type_info& argumentType() const {
+            return typeid(typename std::decay<A>::type);
+         }
+         
+         const std::type_info& resultType() const {
+            return typeid(void);
+         }
+         
+         bool hasRvalueArgument() const {
+            return std::is_rvalue_reference<A>::value;
+         }
+
+         bool hasExceptionPtrArgument() const {
+            return false;
+         }
+
+         Any operator()(Any&& a) const {
+            if (a.type() != typeid(std::vector<Any>)) {
+               typedef typename std::conditional<std::is_rvalue_reference<A>::value, A&&, const A&>::type type;
+               if (a.type() != typeid(typename std::decay<A>::type))
+                  throw bad_cast(a.type(), typeid(A));
+               f_(a.cast<type>());
+            }
+            else {
+               typedef typename std::decay<A>::type ABase;
+               std::vector<Any>& at = a.cast<std::vector<Any>&>();
+               ABase t;
+
+               if (hasRvalueArgument())
+                  move_tuple(t, at.begin());
+               else
+                  copy_tuple(t, at.begin());
+               
+               f_(std::move(t));
             }
 
             return Any();

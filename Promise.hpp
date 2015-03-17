@@ -225,8 +225,12 @@ namespace poolqueue {
       // all of the Promises in the input range fulfil, or rejects
       // when any of the Promises in the input range reject.
       //
-      // If the returned Promise fulfils, no value is passed. Values
-      // can be collected from the input Promises.
+      // If the returned Promise fulfils, the values from the input
+      // Promises can be received by an onFulfil callback as type
+      // std::vector<T> (if the input Promises all return the same
+      // type) or as type std::tuple<T0, T1...> (if the number of
+      // input Promises is known at compile time). For other cases the
+      // value can be retrieved from the individual input Promises.
       //
       // @return Dependent Promise that fulfils on all or rejects on
       //         any.
@@ -267,8 +271,12 @@ namespace poolqueue {
       // all of the Promises in the input list fulfil, or rejects
       // when any of the Promises in the input list reject.
       //
-      // If the returned Promise fulfils, no value is passed. Values
-      // can be collected from the input Promises.
+      // If the returned Promise fulfils, the values from the input
+      // Promises can be received by an onFulfil callback as type
+      // std::vector<T> (if the input Promises all return the same
+      // type) or as type std::tuple<T0, T1...> (if the number of
+      // input Promises is known at compile time). For other cases the
+      // value can be retrieved from the individual input Promises.
       //
       // @return Dependent Promise that fulfils on all or rejects on
       //         any.

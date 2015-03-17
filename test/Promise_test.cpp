@@ -801,7 +801,6 @@ BOOST_AUTO_TEST_CASE(all) {
                v[i].then([=, &complete, &results](size_t value) {
                      BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
-                     return 0;
                   });
             }
          });
@@ -813,6 +812,91 @@ BOOST_AUTO_TEST_CASE(all) {
          else
             BOOST_CHECK(all.settled());
       }
+      BOOST_CHECK_EQUAL(complete, v.size());
+   }
+
+   {
+      std::vector<Promise> v;
+      for (int i = 0; i < 4; ++i)
+         v.push_back(Promise());
+
+      size_t complete = 0;
+      Promise all = Promise::all(v.begin(), v.end());
+      all.then([&](std::vector<size_t>&& results) {
+            BOOST_CHECK_EQUAL(v.size(), results.size());
+            for (size_t i = 0; i < v.size(); ++i) {
+               v[i].then([=, &complete, &results](size_t value) {
+                     BOOST_CHECK_EQUAL(value, results[i]);
+                     ++complete;
+                  });
+            }
+            return 0;
+         });
+
+      for (size_t i = 0; i < v.size(); ++i) {
+         v[i].settle(i);
+         if (i + 1 < v.size())
+            BOOST_CHECK(!all.settled());
+         else
+            BOOST_CHECK(all.settled());
+      }
+      BOOST_CHECK_EQUAL(complete, v.size());
+   }
+
+   {
+      std::vector<Promise> v;
+      for (int i = 0; i < 3; ++i)
+         v.push_back(Promise());
+
+      size_t complete = 0;
+      Promise all = Promise::all(v.begin(), v.end());
+      all.then([&](const std::tuple<int, float, std::string>& results) {
+            v[0].then([=, &complete, &results](const int& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<0>(results));
+                  ++complete;
+               });
+            v[1].then([=, &complete, &results](const float& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<1>(results));
+                  ++complete;
+               });
+            v[2].then([=, &complete, &results](const std::string& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<2>(results));
+                  ++complete;
+               });
+         });
+
+      v[0].settle(42);
+      v[1].settle(3.14f);
+      v[2].settle(std::string("foo"));
+      BOOST_CHECK_EQUAL(complete, v.size());
+   }
+
+   {
+      std::vector<Promise> v;
+      for (int i = 0; i < 3; ++i)
+         v.push_back(Promise());
+
+      size_t complete = 0;
+      Promise all = Promise::all(v.begin(), v.end());
+      all.then([&](std::tuple<int, float, std::string>&& results) {
+            v[0].then([=, &complete, &results](const int& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<0>(results));
+                  ++complete;
+               });
+            v[1].then([=, &complete, &results](const float& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<1>(results));
+                  ++complete;
+               });
+            v[2].then([=, &complete, &results](const std::string& value) {
+                  BOOST_CHECK_EQUAL(value, std::get<2>(results));
+                  ++complete;
+               });
+            return 0;
+         });
+
+      v[0].settle(42);
+      v[1].settle(3.14f);
+      v[2].settle(std::string("foo"));
       BOOST_CHECK_EQUAL(complete, v.size());
    }
 
