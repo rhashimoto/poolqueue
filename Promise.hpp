@@ -238,20 +238,30 @@ namespace poolqueue {
       static Promise all(Iterator bgn, Iterator end) {
          Promise p;
          if (const size_t n = std::distance(bgn, end)) {
-            auto count = std::make_shared<std::atomic<size_t> >(n);
-            auto rejected = std::make_shared<std::atomic<bool> >(false);
-            auto values = std::make_shared<std::vector<Value> >(n);
+            struct Context {
+               std::vector<Value> values;
+               std::atomic<size_t> count;
+               std::atomic<bool> rejected;
+
+               Context(size_t n)
+                  : values(n)
+                  , count(n)
+                  , rejected(false) {
+               }
+            };
+            auto context = std::make_shared<Context>(n);
+
             size_t index = 0;
             for (auto i = bgn; i != end; ++i, ++index) {
                i->then(
                   [=](const Value& value) {
-                     (*values)[index] = value;
-                     if (count->fetch_sub(1) == 1) {
-                        p.settle(std::move(*values));
+                     context->values[index] = value;
+                     if (context->count.fetch_sub(1) == 1) {
+                        p.settle(std::move(context->values));
                      }
                   },
                   [=](const std::exception_ptr& e) {
-                     if (!rejected->exchange(true, std::memory_order_relaxed))
+                     if (!context->rejected.exchange(true, std::memory_order_relaxed))
                         p.settle(e);
                   });
             }
@@ -302,16 +312,25 @@ namespace poolqueue {
       static Promise race(Iterator bgn, Iterator end) {
          Promise p;
          if (const size_t n = std::distance(bgn, end)) {
-            auto count = std::make_shared<std::atomic<size_t>>(n);
-            auto fulfilled = std::make_shared<std::atomic<bool>>(false);
+            struct Context {
+               std::atomic<size_t> count;
+               std::atomic<bool> fulfilled;
+
+               Context(size_t n)
+                  : count(n)
+                  , fulfilled(false) {
+               }
+            };
+            auto context = std::make_shared<Context>(n);
+
             for (auto i = bgn; i != end; ++i) {
                i->then(
                   [=](const Value& value) {
-                     if (!fulfilled->exchange(true, std::memory_order_relaxed))
+                     if (!context->fulfilled.exchange(true, std::memory_order_relaxed))
                         p.settle(value);
                   },
                   [=](const std::exception_ptr&) {
-                     if (count->fetch_sub(1, std::memory_order_relaxed) == 1) {
+                     if (context->count.fetch_sub(1, std::memory_order_relaxed) == 1) {
                         p.settle(std::exception_ptr());
                      }
                   });
