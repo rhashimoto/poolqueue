@@ -88,7 +88,7 @@ Additional example code is under examples/:
 
 * [Basic `Promise` usage](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_basics.cpp)
 * [`Promise::all`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_all.cpp)
-* [`Promise::race`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_race.cpp)
+* [`Promise::any`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_any.cpp)
 * [Closed `Promise`](https://github.com/rhashimoto/poolqueue/blob/master/examples/Promise_close.cpp)
 
 ## Promise details
@@ -109,7 +109,7 @@ fulfils (with an empty value) when all the input `Promise`s fulfil, or
 rejects when any of the input `Promise`s reject (with the exception
 from the first to reject).
 
-The static method `Promise::race()` also creates a new `Promise`
+The static method `Promise::any()` also creates a new `Promise`
 dependent on an input set of `Promise`s. The new `Promise` fulfils
 when any of the input `Promise`s fulfil (with the value from the
 first to fulfil), or rejects when all of the input `Promise`s reject.

@@ -20,7 +20,7 @@ poolqueue:
 EXTRA_PROGRAMS = \
 	Promise_basics \
 	Promise_all \
-	Promise_race \
+	Promise_any \
 	Promise_close \
 	Delay_basics \
 	ThreadPool_basics \
@@ -30,7 +30,7 @@ CLEANFILES = $(EXTRA_PROGRAMS)
 
 Promise_basics_SOURCES = Promise_basics.cpp
 Promise_all_SOURCES = Promise_all.cpp
-Promise_race_SOURCES = Promise_race.cpp
+Promise_any_SOURCES = Promise_any.cpp
 Promise_close_SOURCES = Promise_close.cpp
 Delay_basics_SOURCES = Delay_basics.cpp
 ThreadPool_basics_SOURCES = ThreadPool_basics.cpp

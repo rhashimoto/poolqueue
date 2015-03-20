@@ -309,7 +309,7 @@ namespace poolqueue {
       // @return Dependent Promise that fulfils on any or rejects
       //         on all.
       template<typename Iterator>
-      static Promise race(Iterator bgn, Iterator end) {
+      static Promise any(Iterator bgn, Iterator end) {
          Promise p;
          if (const size_t n = std::distance(bgn, end)) {
             struct Context {
@@ -357,8 +357,8 @@ namespace poolqueue {
       //
       // @return Dependent Promise that fulfils on any or rejects
       //         on all.
-      static Promise race(std::initializer_list<Promise> promises) {
-         return race(promises.begin(), promises.end());
+      static Promise any(std::initializer_list<Promise> promises) {
+         return any(promises.begin(), promises.end());
       }
       
       // Set undelivered exception handler.

@@ -961,13 +961,13 @@ BOOST_AUTO_TEST_CASE(all) {
    }
 }
 
-BOOST_AUTO_TEST_CASE(race) {
+BOOST_AUTO_TEST_CASE(any) {
    {
       std::vector<Promise> v;
 
       size_t complete = 0;
-      Promise race = Promise::race(v.begin(), v.end());
-      race.except([&]() {
+      Promise any = Promise::any(v.begin(), v.end());
+      any.except([&]() {
             for (size_t i = 0; i < v.size(); ++i) {
                v[i].except([=, &complete]() {
                      ++complete;
@@ -987,8 +987,8 @@ BOOST_AUTO_TEST_CASE(race) {
          v.push_back(Promise());
 
       size_t complete = 0;
-      Promise race = Promise::race(v.begin(), v.end());
-      race.except([&]() {
+      Promise any = Promise::any(v.begin(), v.end());
+      any.except([&]() {
             for (size_t i = 0; i < v.size(); ++i) {
                v[i].except([=, &complete]() {
                      ++complete;
@@ -999,9 +999,9 @@ BOOST_AUTO_TEST_CASE(race) {
       for (size_t i = 0; i < v.size(); ++i) {
          v[i].settle(std::make_exception_ptr(std::runtime_error("")));
          if (i + 1 < v.size())
-            BOOST_CHECK(!race.settled());
+            BOOST_CHECK(!any.settled());
          else
-            BOOST_CHECK(race.settled());
+            BOOST_CHECK(any.settled());
       }
       BOOST_CHECK_EQUAL(complete, v.size());
    }
@@ -1012,18 +1012,18 @@ BOOST_AUTO_TEST_CASE(race) {
          v.push_back(Promise());
 
       bool complete = false;
-      Promise race = Promise::race(v.begin(), v.end());
-      race.then([&](const std::string& s) {
+      Promise any = Promise::any(v.begin(), v.end());
+      any.then([&](const std::string& s) {
             BOOST_CHECK_EQUAL(s, std::string("foo"));
             complete = true;
          });
 
       for (size_t i = 1; i < v.size(); ++i)
          v[i].settle(std::make_exception_ptr(std::runtime_error("")));
-      BOOST_CHECK(!race.settled());
+      BOOST_CHECK(!any.settled());
       
       v[0].settle(std::string("foo"));
-      BOOST_CHECK(race.settled());            
+      BOOST_CHECK(any.settled());            
       BOOST_CHECK(complete);
    }
 
@@ -1031,8 +1031,8 @@ BOOST_AUTO_TEST_CASE(race) {
       Promise p0, p1, p2, p3;
 
       int complete = 0;
-      Promise race = Promise::race({p0, p1, p2, p3});
-      race.except([&]() {
+      Promise any = Promise::any({p0, p1, p2, p3});
+      any.except([&]() {
             p0.except([&]() {
                   ++complete;
                });
