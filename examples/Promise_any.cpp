@@ -12,12 +12,12 @@ int main() {
    for (auto& p : promises)
       assert(!p.settled());
 
-   // Fulfil with the first Promise to fulfil using Promise::race().
+   // Fulfil with the first Promise to fulfil using Promise::any().
    // There are two overloads: iterators and initializer_list.
-   Promise pA = Promise::race(promises.begin(), promises.end());
-   Promise pB = Promise::race({promises[0], promises[1]});
+   Promise pA = Promise::any(promises.begin(), promises.end());
+   Promise pB = Promise::any({promises[0], promises[1]});
    
-   // A race Promise fulfils when any input Promise fulfils. The
+   // A any Promise fulfils when any input Promise fulfils. The
    // result is propagated from the first input Promise to fulfil.
    assert(!pA.settled());
    promises[2].settle(std::make_exception_ptr(std::runtime_error("1st reject")));
@@ -31,7 +31,7 @@ int main() {
          std::cout << "pA fulfils with " << s << '\n';
       });
 
-   // A race Promise rejects when all input Promises reject (in any
+   // A any Promise rejects when all input Promises reject (in any
    // order).
    assert(!pB.settled());
    promises[1].settle(std::make_exception_ptr(std::runtime_error("2nd reject")));
