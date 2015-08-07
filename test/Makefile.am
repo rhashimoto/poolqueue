@@ -1,4 +1,5 @@
 TESTS = Delay_test Promise_test ThreadPool_test MPI_test.sh
+EXTRA_DIST = MPI_test.sh
 
 AM_CPPFLAGS = -I$(top_srcdir) $(BOOST_CPPFLAGS)
 AM_LDFLAGS = $(BOOST_UNIT_TEST_FRAMEWORK_LDFLAGS)
