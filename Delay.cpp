@@ -74,6 +74,7 @@ namespace {
          Promise target;
          target.except([&](const std::exception_ptr&) {
                result = false;
+               return nullptr;
             });
          
          {

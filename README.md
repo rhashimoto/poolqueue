@@ -59,6 +59,11 @@ settles dependent `Promise`s with the result (value or exception). A
 dependent `Promise` newly attached to an already settled `Promise`
 will be settled immediately.
 
+Unlike Javascript, a PoolQueue `Promise` callback must return a
+value. This requirement helps to avoid a common programming mistake
+that is hard to debug. If a callback does not compute a meaningful
+result then a dummy value, e.g. `nullptr`, can be returned.
+
 Example:
 
     #include <poolqueue/Promise.hpp>
@@ -67,6 +72,7 @@ Example:
     p.then(
       [](const std::string& s) {
         std::cout << "fulfilled with " << s << '\n';
+        return nullptr;
       },
       [](const std::exception_ptr& e) {
         try {
@@ -76,6 +82,7 @@ Example:
         catch (const std::exception& e) {
           std::cout << "rejected with " << e.what() << '\n';
         }
+        return nullptr;
       });
     ...
     // possibly in another thread
@@ -142,9 +149,11 @@ expires or rejected when it is cancelled:
       .then(
         []() {
           std::cout << "I waited.\n";
+          return nullptr;
         },
         [](const std::exception_ptr& e) {
           std::cout << "Couldn't wait.\n";
+          return nullptr;
         });
 
 Additional example code is under examples/:
@@ -169,9 +178,11 @@ when it is executed on one of the threads in the pool:
     p.then(
       [](std::string& s) {
         std::cout << "Worker result is " << s << '\n';
+        return nullptr;
       },
       [](const std::exception& e) {
         std::cout << "Worker threw an exception\n";
+        return nullptr;
       });
 
 The default number of pool threads is the detected hardware

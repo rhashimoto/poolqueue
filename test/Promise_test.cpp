@@ -14,14 +14,8 @@ static int f_string_to_int(const std::string& s) {
    return 42;
 }
 
-static void f_string_to_void(const std::string& s) {
-}
-
 static int f_void_to_int() {
    return 42;
-}
-
-static void f_void_to_void() {
 }
 
 BOOST_AUTO_TEST_CASE(callback) {
@@ -42,17 +36,6 @@ BOOST_AUTO_TEST_CASE(callback) {
    }
    
    {
-      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_string_to_void));
-      BOOST_CHECK(!cb->hasRvalueArgument());
-      BOOST_CHECK(!cb->hasExceptionPtrArgument());
-
-      Any a(ArgumentValue);
-      Any result = (*cb)(std::move(a));
-      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
-      BOOST_CHECK(result.empty());
-   }
-   
-   {
       std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_void_to_int));
       BOOST_CHECK(!cb->hasRvalueArgument());
       BOOST_CHECK(!cb->hasExceptionPtrArgument());
@@ -61,17 +44,6 @@ BOOST_AUTO_TEST_CASE(callback) {
       Any result = (*cb)(std::move(a));
       BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
       BOOST_CHECK_EQUAL(result.cast<decltype(ResultValue)>(), ResultValue);
-   }
-   
-   {
-      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper(&f_void_to_void));
-      BOOST_CHECK(!cb->hasRvalueArgument());
-      BOOST_CHECK(!cb->hasExceptionPtrArgument());
-
-      Any a(ArgumentValue);
-      Any result = (*cb)(std::move(a));
-      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
-      BOOST_CHECK(result.empty());
    }
    
    {
@@ -150,19 +122,6 @@ BOOST_AUTO_TEST_CASE(callback) {
    }
 
    {
-      // void f()
-      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper([=]() {
-            }));
-      BOOST_CHECK(!cb->hasRvalueArgument());
-      BOOST_CHECK(!cb->hasExceptionPtrArgument());
-      
-      Any a(ArgumentValue);
-      Any result = (*cb)(std::move(a));
-      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
-      BOOST_CHECK(result.empty());
-   }
-
-   {
       // R f(const Any&)
       std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper([=](const Promise::Value& a) {
                BOOST_CHECK_EQUAL(a.cast<std::string>(), ArgumentValue);
@@ -175,20 +134,6 @@ BOOST_AUTO_TEST_CASE(callback) {
       Any result = (*cb)(std::move(a));
       BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
       BOOST_CHECK_EQUAL(result.cast<decltype(ResultValue)>(), ResultValue);
-   }
-
-   {
-      // void f(const Any&)
-      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper([=](const Promise::Value& a) {
-               BOOST_CHECK_EQUAL(a.cast<std::string>(), ArgumentValue);
-            }));
-      BOOST_CHECK(!cb->hasRvalueArgument());
-      BOOST_CHECK(!cb->hasExceptionPtrArgument());
-      
-      Any a(ArgumentValue);
-      Any result = (*cb)(std::move(a));
-      BOOST_CHECK_EQUAL(a.cast<decltype(ArgumentValue)>(), ArgumentValue);
-      BOOST_CHECK(result.empty());
    }
 
    {
@@ -206,22 +151,6 @@ BOOST_AUTO_TEST_CASE(callback) {
       Any result = (*cb)(std::move(a));
       BOOST_CHECK(a.empty());
       BOOST_CHECK_EQUAL(result.cast<decltype(ResultValue)>(), ResultValue);
-   }
-
-   {
-      // void f(Any&&)
-      std::unique_ptr<CallbackWrapper> cb(makeCallbackWrapper([=](Promise::Value&& a) {
-               BOOST_CHECK_EQUAL(a.cast<std::string>(), ArgumentValue);
-               Any tmp;
-               tmp.swap(a);
-            }));
-      BOOST_CHECK(cb->hasRvalueArgument());
-      BOOST_CHECK(!cb->hasExceptionPtrArgument());
-      
-      Any a(ArgumentValue);
-      Any result = (*cb)(std::move(a));
-      BOOST_CHECK(a.empty());
-      BOOST_CHECK(result.empty());
    }
 
    {
@@ -341,6 +270,7 @@ BOOST_AUTO_TEST_CASE(constructors) {
       
       pCopied.then([](int value) {
             BOOST_CHECK_EQUAL(value, 42);
+            return nullptr;
          });
    }
 
@@ -371,6 +301,7 @@ BOOST_AUTO_TEST_CASE(constructors) {
       
       pMoved.then([](int value) {
             BOOST_CHECK_EQUAL(value, 17);
+            return nullptr;
          });
    }
 
@@ -394,9 +325,11 @@ BOOST_AUTO_TEST_CASE(constructors) {
          [&](const std::string& s) {
             BOOST_CHECK_EQUAL(s, "foo");
             success = true;
+            return nullptr;
          },
          [](const std::exception_ptr& e) {
             BOOST_CHECK(false);
+            return nullptr;
          });
       BOOST_CHECK(!p.settled());
       BOOST_CHECK(!p.closed());
@@ -443,6 +376,7 @@ BOOST_AUTO_TEST_CASE(constructors) {
          [&](const std::string& s) {
             BOOST_CHECK_EQUAL(s, "foo");
             success = true;
+            return nullptr;
          });
       BOOST_CHECK(!p.settled());
       BOOST_CHECK(!p.closed());
@@ -460,9 +394,11 @@ BOOST_AUTO_TEST_CASE(constructors) {
       Promise p(
          [&]() {
             success = true;
+            return nullptr;
          },
          []() {
             BOOST_CHECK(false);
+            return nullptr;
          });
       BOOST_CHECK(!p.settled());
       BOOST_CHECK(!p.closed());
@@ -517,8 +453,9 @@ BOOST_AUTO_TEST_CASE(undeliveredException) {
 }
 
 static bool thenCalled = false;
-static void then_function() {
+static std::nullptr_t then_function() {
    thenCalled = true;
+   return nullptr;
 }
 
 BOOST_AUTO_TEST_CASE(basic_then) {
@@ -540,11 +477,13 @@ BOOST_AUTO_TEST_CASE(basic_then) {
 
    p.then([&](int) {
          ++coverage;
+         return nullptr;
       });
    BOOST_CHECK_EQUAL(coverage, 3);
 
    p.then([&]() {
          ++coverage;
+         return nullptr;
       });
    BOOST_CHECK_EQUAL(coverage, 4);
 
@@ -553,19 +492,21 @@ BOOST_AUTO_TEST_CASE(basic_then) {
    
    p.except([&](const std::exception_ptr&) {
          BOOST_CHECK(false);
+         return nullptr;
       });
 
-   BOOST_CHECK_THROW(p.then([](float) {}), std::bad_cast);
+   BOOST_CHECK_THROW(p.then([](float) { return nullptr; }), std::bad_cast);
    BOOST_CHECK_THROW(p.settle(0), std::logic_error);
 }
 
 static bool exceptCalled = false;
-static void except_function(const std::exception_ptr&) {
+static std::nullptr_t except_function(const std::exception_ptr&) {
    exceptCalled = true;
+   return nullptr;
 }
 
 BOOST_AUTO_TEST_CASE(basic_except) {
-   Promise p([]() { throw 0; });
+   Promise p([]() -> std::nullptr_t { throw 0; });
    p.settle();
    
    int coverage = 0;
@@ -577,6 +518,7 @@ BOOST_AUTO_TEST_CASE(basic_except) {
 
    p.except([&](const std::exception_ptr&) {
          ++coverage;
+         return nullptr;
       });
    BOOST_CHECK_EQUAL(coverage, 2);
 
@@ -589,6 +531,7 @@ BOOST_AUTO_TEST_CASE(basic_except) {
       });
    p.then([&]() {
          BOOST_CHECK(false);
+         return nullptr;
       });
    BOOST_CHECK(handlerCalled);
    Promise::setUndeliveredExceptionHandler(originalHandler);
@@ -616,6 +559,7 @@ BOOST_AUTO_TEST_CASE(biway_then) {
       q.then([&](int i) {
             done = true;
             BOOST_CHECK_EQUAL(i, 42);
+            return nullptr;
          });
 
       p.settle(42);
@@ -635,7 +579,7 @@ BOOST_AUTO_TEST_CASE(chain) {
             ++coverage;
             return 1;
          })
-      .then([&](int i) {
+      .then([&](int i) -> std::nullptr_t {
             BOOST_CHECK_EQUAL(i, 1);
             ++coverage;
             throw std::runtime_error("");
@@ -643,6 +587,7 @@ BOOST_AUTO_TEST_CASE(chain) {
       .then([&]() {
             // Won't get here because exception was thrown.
             BOOST_CHECK(false);
+            return nullptr;
          })
       .except([&](const std::exception_ptr& e) {
             ++coverage;
@@ -656,6 +601,7 @@ BOOST_AUTO_TEST_CASE(chain) {
       .then([&](int i) {
             BOOST_CHECK_EQUAL(i, 2);
             ++coverage;
+            return nullptr;
          })
       ;
    BOOST_CHECK(!tail.settled());
@@ -676,7 +622,7 @@ BOOST_AUTO_TEST_CASE(subpromise) {
             ++coverage;
             return inner;
          })
-      .then([&](int i) {
+      .then([&](int i) -> std::nullptr_t {
             BOOST_CHECK_EQUAL(i, 1);
             ++coverage;
 
@@ -689,6 +635,7 @@ BOOST_AUTO_TEST_CASE(subpromise) {
       .then([&](int i) {
             BOOST_CHECK_EQUAL(i, 1);
             ++coverage;
+            return nullptr;
          })
       ;
 
@@ -722,10 +669,12 @@ BOOST_AUTO_TEST_CASE(rvalue) {
    // Non rvalue reference arguments.
    p.then([](const std::string& s) {
          BOOST_CHECK(!s.empty());
+         return nullptr;
       });
    BOOST_CHECK(!p.closed());
    p.then([](std::string s) {
          BOOST_CHECK(!s.empty());
+         return nullptr;
       });
    BOOST_CHECK(!p.closed());
 
@@ -735,12 +684,13 @@ BOOST_AUTO_TEST_CASE(rvalue) {
          std::string tmp(std::move(s));
          std::cout << tmp << '\n';
          BOOST_CHECK(s.empty());
+         return nullptr;
       });
    BOOST_CHECK(p.closed());
 
    // No more callbacks allowed.
-   BOOST_CHECK_THROW(p.then([](const std::string&) {}), std::logic_error);
-   BOOST_CHECK_THROW(p.except([](const std::exception_ptr&) {}), std::logic_error);
+   BOOST_CHECK_THROW(p.then([](const std::string&) { return nullptr; }), std::logic_error);
+   BOOST_CHECK_THROW(p.except([](const std::exception_ptr&) { return nullptr; }), std::logic_error);
 
    // Verify that no accidental copies are made.
    int coverage = 0;
@@ -778,8 +728,11 @@ BOOST_AUTO_TEST_CASE(all) {
                v[i].then([=, &complete, &results](size_t value) {
                      BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
+                     return nullptr;
                   });
             }
+
+            return nullptr;
          });
 
       for (size_t i = 0; i < v.size(); ++i)
@@ -801,8 +754,11 @@ BOOST_AUTO_TEST_CASE(all) {
                v[i].then([=, &complete, &results](size_t value) {
                      BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
+                     return nullptr;
                   });
             }
+
+            return nullptr;
          });
 
       for (size_t i = 0; i < v.size(); ++i) {
@@ -828,6 +784,7 @@ BOOST_AUTO_TEST_CASE(all) {
                v[i].then([=, &complete, &results](size_t value) {
                      BOOST_CHECK_EQUAL(value, results[i]);
                      ++complete;
+                     return nullptr;
                   });
             }
             return 0;
@@ -854,15 +811,19 @@ BOOST_AUTO_TEST_CASE(all) {
             v[0].then([=, &complete, &results](const int& value) {
                   BOOST_CHECK_EQUAL(value, std::get<0>(results));
                   ++complete;
+                  return nullptr;
                });
             v[1].then([=, &complete, &results](const float& value) {
                   BOOST_CHECK_EQUAL(value, std::get<1>(results));
                   ++complete;
+                  return nullptr;
                });
             v[2].then([=, &complete, &results](const std::string& value) {
                   BOOST_CHECK_EQUAL(value, std::get<2>(results));
                   ++complete;
+                  return nullptr;
                });
+            return nullptr;
          });
 
       v[0].settle(42);
@@ -882,14 +843,17 @@ BOOST_AUTO_TEST_CASE(all) {
             v[0].then([=, &complete, &results](const int& value) {
                   BOOST_CHECK_EQUAL(value, std::get<0>(results));
                   ++complete;
+                  return nullptr;
                });
             v[1].then([=, &complete, &results](const float& value) {
                   BOOST_CHECK_EQUAL(value, std::get<1>(results));
                   ++complete;
+                  return nullptr;
                });
             v[2].then([=, &complete, &results](const std::string& value) {
                   BOOST_CHECK_EQUAL(value, std::get<2>(results));
                   ++complete;
+                  return nullptr;
                });
             return 0;
          });
@@ -915,6 +879,7 @@ BOOST_AUTO_TEST_CASE(all) {
                BOOST_CHECK_EQUAL(error.what(), std::string("foo"));
             }
             complete = true;
+            return nullptr;
          });
 
       for (size_t i = 1; i < v.size(); ++i)
@@ -935,19 +900,24 @@ BOOST_AUTO_TEST_CASE(all) {
             p0.then([&](int value) {
                   BOOST_CHECK_EQUAL(value, 0);
                   ++complete;
+                  return nullptr;
                });
             p1.then([&](int value) {
                   BOOST_CHECK_EQUAL(value, 1);
                   ++complete;
+                  return nullptr;
                });
             p2.then([&](int value) {
                   BOOST_CHECK_EQUAL(value, 2);
                   ++complete;
+                  return nullptr;
                });
             p3.then([&](int value) {
                   BOOST_CHECK_EQUAL(value, 3);
                   ++complete;
+                  return nullptr;
                });
+            return nullptr;
          });
 
       p0.settle(0);
@@ -971,8 +941,11 @@ BOOST_AUTO_TEST_CASE(any) {
             for (size_t i = 0; i < v.size(); ++i) {
                v[i].except([=, &complete]() {
                      ++complete;
+                     return nullptr;
                   });
             }
+
+            return nullptr;
          });
 
       for (size_t i = 0; i < v.size(); ++i)
@@ -992,8 +965,11 @@ BOOST_AUTO_TEST_CASE(any) {
             for (size_t i = 0; i < v.size(); ++i) {
                v[i].except([=, &complete]() {
                      ++complete;
+                     return nullptr;
                   });
             }
+
+            return nullptr;
          });
 
       for (size_t i = 0; i < v.size(); ++i) {
@@ -1016,6 +992,7 @@ BOOST_AUTO_TEST_CASE(any) {
       any.then([&](const std::string& s) {
             BOOST_CHECK_EQUAL(s, std::string("foo"));
             complete = true;
+            return nullptr;
          });
 
       for (size_t i = 1; i < v.size(); ++i)
@@ -1035,16 +1012,21 @@ BOOST_AUTO_TEST_CASE(any) {
       any.except([&]() {
             p0.except([&]() {
                   ++complete;
+                  return nullptr;
                });
             p1.except([&]() {
                   ++complete;
+                  return nullptr;
                });
             p2.except([&]() {
                   ++complete;
+                  return nullptr;
                });
             p3.except([&]() {
                   ++complete;
+                  return nullptr;
                });
+            return nullptr;
          });
 
       p0.settle(std::make_exception_ptr(std::runtime_error("")));

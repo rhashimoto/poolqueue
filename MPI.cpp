@@ -211,6 +211,7 @@ struct poolqueue::MPI::Pimpl {
       std::promise<void> done;
       synchronize().then([&]() {
             done.set_value();
+            return nullptr;
          });
       done.get_future().wait();
       pool().synchronize().wait();
@@ -364,6 +365,7 @@ struct poolqueue::MPI::Pimpl {
                            .then([this, status, tag](const Promise::Value& value) {
                                  detail::ResultProcedure rp(tag, value);
                                  call(status->source(), rp);
+                                 return nullptr;
                               });
                      }
                      else {
@@ -373,6 +375,8 @@ struct poolqueue::MPI::Pimpl {
 
                         (*f)();
                      }
+
+                     return nullptr;
                   });
                   
                // Listen again.
@@ -387,7 +391,7 @@ struct poolqueue::MPI::Pimpl {
             
       for (auto& request : recvRequests_)
          request.cancel();
-         
+
       world_.reset();
       env_.reset();
    }
@@ -581,6 +585,7 @@ poolqueue::MPI::synchronize() {
    std::promise<void> done;
    pimpl.syncPromise_.then([&]() {
          done.set_value();
+         return nullptr;
       });
    done.get_future().wait();
    

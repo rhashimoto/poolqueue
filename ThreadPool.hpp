@@ -199,6 +199,8 @@ namespace poolqueue {
                   // thread runs this lambda.
                   else
                      future.wait();
+
+                  return nullptr;
                });
             queue_.push(occupier);
          }

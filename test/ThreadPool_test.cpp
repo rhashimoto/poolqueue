@@ -14,7 +14,8 @@
 #include "ThreadPool.hpp"
 
 BOOST_AUTO_TEST_CASE(basic) {
-   poolqueue::ThreadPool tp;
+   using namespace poolqueue;
+   ThreadPool tp;
    BOOST_CHECK_EQUAL(tp.index(), -1);
 
    int count = 0;
@@ -23,16 +24,19 @@ BOOST_AUTO_TEST_CASE(basic) {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       });
    tp.dispatch([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       });
    tp.wrap([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       })();
 
    tp.synchronize().wait();
@@ -50,16 +54,19 @@ BOOST_AUTO_TEST_CASE(stack) {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       });
    tp.dispatch([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       });
    tp.wrap([&]() {
          std::lock_guard<std::mutex> lock(exclusive);
          BOOST_CHECK_GE(tp.index(), 0);
          ++count;
+         return nullptr;
       })();
 
    // synchronize() won't work because stack is not FIFO.
@@ -69,7 +76,8 @@ BOOST_AUTO_TEST_CASE(stack) {
 }
 
 BOOST_AUTO_TEST_CASE(promise) {
-   poolqueue::ThreadPool tp;
+   using namespace poolqueue;
+   ThreadPool tp;
 
    {
       bool complete = false;
@@ -81,6 +89,7 @@ BOOST_AUTO_TEST_CASE(promise) {
          .then([&complete](int i) {
                BOOST_CHECK_EQUAL(i, 42);
                complete = true;
+               return nullptr;
             });
 
       tp.synchronize().wait();
@@ -90,7 +99,7 @@ BOOST_AUTO_TEST_CASE(promise) {
    {
       bool complete = false;
       tp.post(
-         [&tp]() {
+         [&tp]() -> std::nullptr_t {
             BOOST_CHECK_GE(tp.index(), 0);
             throw std::runtime_error("foo");
          })
@@ -103,6 +112,8 @@ BOOST_AUTO_TEST_CASE(promise) {
                   BOOST_CHECK_EQUAL(e.what(), std::string("foo"));
                   complete = true;
                }
+
+               return nullptr;
             });
 
       tp.synchronize().wait();
@@ -118,7 +129,9 @@ BOOST_AUTO_TEST_CASE(post) {
    tp.post([&tp, &promise]() {
          tp.post([&promise]() {
                promise.set_value();
+               return nullptr;
             });
+         return nullptr;
       });
 
    promise.get_future().wait();
@@ -138,9 +151,11 @@ BOOST_AUTO_TEST_CASE(dispatch) {
                BOOST_CHECK_EQUAL(value, 0xdeadbeef);
                BOOST_CHECK_EQUAL(tid, std::this_thread::get_id());
                promise.set_value();
+               return nullptr;
             });
 
          value = 0;
+         return nullptr;
       });
 
    promise.get_future().wait();
@@ -171,6 +186,7 @@ BOOST_AUTO_TEST_CASE(count) {
                lock.unlock();
 
                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+               return nullptr;
             });
       }
       
@@ -195,6 +211,7 @@ BOOST_AUTO_TEST_CASE(stress) {
               ++nProduced[i];
               tp.post([=, &tp, &nConsumed]() {
                     ++nConsumed[tp.index()];
+                    return nullptr;
                  });
             }
          });
@@ -229,6 +246,7 @@ BOOST_AUTO_TEST_CASE(performance) {
       auto bgnTime = std::chrono::steady_clock::now();
       for (size_t i = 0; i < n; ++i) {
          tp.post([]() {
+               return nullptr;
             });
       }
       tp.synchronize().wait();

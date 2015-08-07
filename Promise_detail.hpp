@@ -357,7 +357,8 @@ namespace poolqueue {
             return f_();
          }
       };
-         
+
+#if 0
       // Specialize for void f().
       template<typename F>
       class CallbackWrapperT<F, void, void, false, false, false> : public CallbackWrapper {
@@ -386,7 +387,8 @@ namespace poolqueue {
             return Any();
          }
       };
-
+#endif
+      
       // Specialize for R f(const Any&) or R f(Any&&).
       template<typename F, typename R, typename A>
       class CallbackWrapperT<F, R, A, true, false, false> : public CallbackWrapper {
@@ -481,11 +483,11 @@ namespace poolqueue {
 
                if (hasRvalueArgument()) {
                   for (size_t i = 0; i < n; ++i)
-                     v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+                     v[i] = std::move(av[i].cast<ElementType&>());
                }
                else {
                   for (size_t i = 0; i < n; ++i)
-                     v[i] = av[i].cast<const typename ABase::value_type&>();
+                     v[i] = av[i].cast<const ElementType&>();
                }               
                return f_(std::move(v));
             }
@@ -529,11 +531,11 @@ namespace poolqueue {
 
                if (hasRvalueArgument()) {
                   for (size_t i = 0; i < n; ++i)
-                     v[i] = std::move(av[i].cast<typename ABase::value_type&>());
+                     v[i] = std::move(av[i].cast<ElementType&>());
                }
                else {
                   for (size_t i = 0; i < n; ++i)
-                     v[i] = av[i].cast<const typename ABase::value_type&>();
+                     v[i] = av[i].cast<const ElementType&>();
                }               
                f_(std::move(v));
             }
@@ -691,13 +693,18 @@ namespace poolqueue {
          return new CallbackWrapperT<F, typename std::decay<R>::type, A, isValue, isVector, isTuple>(std::forward<F>(f));
       }
 
+      struct Null {
+      };
+      
       struct NullFulfil {
-         void operator()() const {
+         Null operator()() const {
+            return Null();
          }
       };
 
       struct NullReject {
-         void operator()(const std::exception_ptr&) const {
+         Null operator()(const std::exception_ptr&) const {
+            return Null();
          }
       };
 

@@ -29,6 +29,8 @@ BOOST_AUTO_TEST_CASE(basic) {
                   std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(t)).count());
                results.push_back(t);
                --count;
+
+               return nullptr;
             });
    }
 
@@ -50,6 +52,7 @@ BOOST_AUTO_TEST_CASE(cancel) {
          [&, i]() {
             results.push_back(i);
             --count;
+            return nullptr;
          },
          [&](const std::exception_ptr& e) {
             try {
@@ -67,6 +70,7 @@ BOOST_AUTO_TEST_CASE(cancel) {
             }
 
             --count;
+            return nullptr;
          });
    }
 

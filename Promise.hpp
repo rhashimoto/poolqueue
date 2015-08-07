@@ -109,6 +109,10 @@ namespace poolqueue {
          static_assert(isFulfilNull || isRejectNull ||
                        std::is_same<FulfilResult, RejectResult>::value,
                        "onFulfil and onReject return types must match");
+         static_assert(!std::is_same<typename std::decay<FulfilResult>::type, void>::value,
+                       "onFulfil callback must return a value.");
+         static_assert(!std::is_same<typename std::decay<RejectResult>::type, void>::value,
+                       "onFulfil callback must return a value.");
       }
 
       ~Promise() noexcept;
@@ -158,6 +162,12 @@ namespace poolqueue {
       // @return Dependent Promise to receive the eventual result.
       template<typename Fulfil, typename Reject = detail::NullReject >
       Promise then(Fulfil&& onFulfil, Reject&& onReject = Reject()) const {
+         typedef typename detail::CallableTraits<Fulfil>::ResultType FulfilResult;
+         typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
+         static_assert(!std::is_same<typename std::decay<FulfilResult>::type, void>::value,
+                       "onFulfil callback must return a value.");
+         static_assert(!std::is_same<typename std::decay<RejectResult>::type, void>::value,
+                       "onFulfil callback must return a value.");
          if (closed())
             throw std::logic_error("Promise is closed");
          
@@ -177,6 +187,9 @@ namespace poolqueue {
       // @return Dependent Promise to receive the eventual result.
       template<typename Reject>
       Promise except(Reject&& onReject) const {
+         typedef typename detail::CallableTraits<Reject>::ResultType RejectResult;
+         static_assert(!std::is_same<typename std::decay<RejectResult>::type, void>::value,
+                       "onFulfil callback must return a value.");
          return then(detail::NullFulfil(), std::forward<Reject>(onReject));
       }
 
@@ -259,10 +272,12 @@ namespace poolqueue {
                      if (context->count.fetch_sub(1) == 1) {
                         p.settle(std::move(context->values));
                      }
+                     return detail::Null();
                   },
                   [=](const std::exception_ptr& e) {
                      if (!context->rejected.exchange(true, std::memory_order_relaxed))
                         p.settle(e);
+                     return detail::Null();
                   });
             }
          }
@@ -328,11 +343,12 @@ namespace poolqueue {
                   [=](const Value& value) {
                      if (!context->fulfilled.exchange(true, std::memory_order_relaxed))
                         p.settle(value);
+                     return detail::Null();
                   },
                   [=](const std::exception_ptr&) {
-                     if (context->count.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                     if (context->count.fetch_sub(1, std::memory_order_relaxed) == 1)
                         p.settle(std::exception_ptr());
-                     }
+                     return detail::Null();
                   });
             }
          }
