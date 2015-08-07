@@ -13,16 +13,14 @@ function objects) and `std::promise` provides *blocking*
 synchronization (or polling). Both have their uses and one is not a
 direct replacement for the other.
 
-`boost::future` provides a
-[`then()` method](http://www.boost.org/doc/libs/1_57_0/doc/html/thread/synchronization.html#thread.synchronization.futures.then)
-which is non-blocking and is closer in spirit to PoolQueue. Unlike
-PoolQueue, however, `boost::future` continuations work with non-shared
-futures, which limits the topology of dependent actions to a single
-chain instead of a tree (`then()` can be invoked only once on a
-`boost::future` instance). This permits certain implementation
-optimizations but also restricts applications. PoolQueue uses the
-*closed* `Promise` concept to recover some (though not all) of those
-optimization opportunities.
+`boost::future` provides a [`then()` method](http://www.boost.org/doc/libs/1_58_0/doc/html/thread/synchronization.html#thread.synchronization.futures.then)
+which is non-blocking and is closer in spirit to PoolQueue, but there
+are a number of key differences. The `boost::future` implementation of
+`then()` spawns a thread to block on the future, while PoolQueue
+simply chains a callback. Returning a Promise from a callback is an
+important Promises/A+ feature, but is not allowed with `boost::future`.
+The `then()` method can be invoked at most once on a `boost::future`
+instance, while Promises/A+ does not have this restriction.
 
 PoolQueue is developed by Shoestring Research, LLC and is available
 under the [Apache License Version
@@ -58,11 +56,6 @@ invokes the appropriate callback if present, and then recursively
 settles dependent `Promise`s with the result (value or exception). A
 dependent `Promise` newly attached to an already settled `Promise`
 will be settled immediately.
-
-Unlike Javascript, a PoolQueue `Promise` callback must return a
-value. This requirement helps to avoid a common programming mistake
-that is hard to debug. If a callback does not compute a meaningful
-result then a dummy value, e.g. `nullptr`, can be returned.
 
 Example:
 
@@ -102,6 +95,11 @@ Additional example code is under examples/:
 A PoolQueue `Promise` holds a shared pointer to its state. Copying a
 `Promise` produces another reference to the same state, not a brand
 new `Promise`. This allows lambdas to capture `Promise`s by value.
+
+Note that unlike Javascript, a PoolQueue `Promise` callback must
+return a value. This requirement helps to avoid a common programming
+mistake that is hard to debug. If a callback does not compute a
+meaningful result then a dummy value, e.g. `nullptr`, can be returned.
 
 A `Promise` can be closed to `then()` and `except()` methods, either
 explicitly using `close()` or implicitly by passing an `onFulfil`
