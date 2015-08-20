@@ -103,6 +103,7 @@ BOOST_CLASS_EXPORT(ReturnClass);
 
 BOOST_AUTO_TEST_CASE(return_class) {
    MPI::registerType<std::string>();
+   MPI::synchronize();
    
    std::promise<void> done;
    MPI::call(0, ReturnClass())
