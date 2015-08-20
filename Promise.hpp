@@ -74,10 +74,10 @@ namespace poolqueue {
       //            onFulfil may take a single argument by value, const
       //            reference, or rvalue reference. In the case of an
       //            rvalue reference argument, the Promise will be closed
-      //            to additional callbacks. onFulfil may return a value.
+      //            to additional callbacks. onFulfil must return a value.
       // @onReject  Optional function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
-      //            const std::exception_ptr& and may return a value.
+      //            const std::exception_ptr& and must return a value.
       //
       // This creates a new instance that is not attached to any other
       // instance.  When the instance is settled, the appropriate
@@ -140,10 +140,10 @@ namespace poolqueue {
       //            onFulfil may take a single argument by value, const
       //            reference, or rvalue reference. In the case of an
       //            rvalue reference argument, the Promise will be closed
-      //            to additional callbacks. onFulfil may return a value.
+      //            to additional callbacks. onFulfil must return a value.
       // @onReject  Optional function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
-      //            const std::exception_ptr& and may return a value. 
+      //            const std::exception_ptr& and must return a value. 
       //
       // This method produces a dependent Promise that receives the value
       // or error from the upstream Promise and passes it through the
@@ -179,7 +179,7 @@ namespace poolqueue {
       // Attach reject callback only.
       // @onReject  Function/functor to be called if the Promise is
       //            rejected. onReject may take a single argument of
-      //            const std::exception_ptr& and may return a value. 
+      //            const std::exception_ptr& and must return a value. 
       //
       // This method is the same as then() except that it only
       // attaches a reject callback.
