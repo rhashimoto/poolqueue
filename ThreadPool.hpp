@@ -50,9 +50,7 @@ namespace poolqueue {
       // Construct a pool.
       // @nThreads  Number of threads in the pool. The default
       //            is the hardware concurrency.
-      ThreadPoolT(unsigned int nThreads = 0) {
-         if (!nThreads)
-            nThreads = std::max(std::thread::hardware_concurrency(), 1U);
+      ThreadPoolT(unsigned int nThreads = std::max(std::thread::hardware_concurrency(), 1U)) {
          setThreadCount(nThreads);
       }
 
@@ -139,8 +137,8 @@ namespace poolqueue {
       // Get number of threads in the pool.
       //
       // @return Number of threads.
-      int getThreadCount() {
-         return threads_.size();
+      unsigned int getThreadCount() {
+         return static_cast<unsigned int>(threads_.size());
       }
 
       // Set number of threads in the pool.
@@ -149,7 +147,7 @@ namespace poolqueue {
       // it is the number of hardware threads determined by
       // std::thread::hardware_concurrency(). setThreadCount() must
       // not be called concurrently with any other member function.
-      void setThreadCount(int n) {
+      void setThreadCount(unsigned int n) {
          if (n <= 0)
             throw std::invalid_argument("count must be > 0");
          setThreadCountImpl(n);
@@ -219,7 +217,7 @@ namespace poolqueue {
       std::mutex mutex_;
       std::condition_variable condition_;
 
-      void setThreadCountImpl(size_t n) {
+      void setThreadCountImpl(unsigned int n) {
          // Add threads.
          const auto oldCount = threads_.size();
          if (n > oldCount) {

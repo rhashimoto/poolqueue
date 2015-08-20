@@ -166,7 +166,6 @@ BOOST_AUTO_TEST_CASE(count) {
    
    const int nThreads = tp.getThreadCount();
    BOOST_CHECK_THROW(tp.setThreadCount(0), std::invalid_argument);
-   BOOST_CHECK_THROW(tp.setThreadCount(-1), std::invalid_argument);
 
    std::mutex mutex;
    for (int i = 1; i < 32; ++i) {
