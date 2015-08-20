@@ -168,7 +168,7 @@ namespace poolqueue {
          const LoadFunc& loadFunc);
 
       static const SaveFunc& getSaveFunc(const std::type_info& type);
-      static const LoadFunc& getLoadFunc(const int32_t index);
+      static const LoadFunc& getLoadFunc(const uint32_t index);
    };
 
 } // namespace poolqueue

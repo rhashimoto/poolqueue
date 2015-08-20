@@ -97,7 +97,7 @@ namespace poolqueue {
             ar & tag_;
                
             // Load type and dispatch to load Promise::Value.
-            int32_t type;
+            uint32_t type;
             ar >> type;
 
             auto f = poolqueue::MPI::getLoadFunc(type);
@@ -169,7 +169,7 @@ struct poolqueue::MPI::Pimpl {
    std::unordered_map<uint32_t, Promise> tagPromises_;
 
    std::unordered_map<std::type_index, SaveFunc> saveFuncs_;
-   std::unordered_map<int32_t, LoadFunc> loadFuncs_;
+   std::unordered_map<uint32_t, LoadFunc> loadFuncs_;
 
    Promise syncPromise_;
    
@@ -409,7 +409,7 @@ struct poolqueue::MPI::Pimpl {
       if (saveFuncs_.count(type))
          return;
 
-      const int32_t index = static_cast<int32_t>(saveFuncs_.size());
+      const uint32_t index = static_cast<uint32_t>(saveFuncs_.size());
       saveFuncs_[type] = [=](OArchive& ar, const Promise::Value& value) {
          ar << index;
          saveFunc(ar, value);
@@ -638,7 +638,7 @@ poolqueue::MPI::getSaveFunc(const std::type_info& type) {
 }
 
 const poolqueue::MPI::LoadFunc&
-poolqueue::MPI::getLoadFunc(int32_t index) {
+poolqueue::MPI::getLoadFunc(uint32_t index) {
 #ifdef HAVE_BOOST_MPI_HPP
    auto& pimpl = Pimpl::singleton();
    auto i = pimpl.loadFuncs_.find(index);
