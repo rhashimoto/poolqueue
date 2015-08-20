@@ -202,7 +202,7 @@ struct poolqueue::MPI::Pimpl {
       // Start the MPI thread and wait for initialization.
       running_ = 1;
       std::promise<void> ready;
-      std::thread([this, &ready]() { run(ready); }).swap(t_);
+      std::thread([&]() { run(ready); }).swap(t_);
       ready.get_future().wait();
    }
 
@@ -272,8 +272,8 @@ struct poolqueue::MPI::Pimpl {
       }
 
       // Queue message.
-      enqueue([this, rank, buffer]() {
-            this->sendRequests_.emplace_back(rank, std::move(*buffer));
+      enqueue([=]() {
+            sendRequests_.emplace_back(rank, std::move(*buffer));
          });
       return p;
    }
@@ -362,7 +362,7 @@ struct poolqueue::MPI::Pimpl {
                         ia >> f;
 
                         (*f)()
-                           .then([this, status, tag](const Promise::Value& value) {
+                           .then([=](const Promise::Value& value) {
                                  detail::ResultProcedure rp(tag, value);
                                  call(status->source(), rp);
                                  return nullptr;
@@ -397,8 +397,8 @@ struct poolqueue::MPI::Pimpl {
    }
 
    void setInterval(const std::chrono::microseconds& interval) {
-      enqueue([this, interval]() {
-            this->interval_ = interval;
+      enqueue([=]() {
+            interval_ = interval;
          });
    }
       
