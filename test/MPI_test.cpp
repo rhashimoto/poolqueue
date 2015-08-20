@@ -33,6 +33,14 @@ BOOST_CLASS_EXPORT(MyProcedure)
 BOOST_AUTO_TEST_CASE(procedure) {
    for (int i = 0; i < MPI::size(); ++i)
       MPI::call(i, MyProcedure(i));
+
+   std::promise<void> done;
+   MPI::synchronize()
+      .then([&]() {
+            done.set_value();
+            return nullptr;
+         });
+   done.get_future().wait();
 }
 
 class MyFunction : public Function {
