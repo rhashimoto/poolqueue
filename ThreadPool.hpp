@@ -83,8 +83,11 @@ namespace poolqueue {
       template<typename F>
       Promise post(F&& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         typedef typename detail::CallableTraits<F>::ResultType Result;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
+         static_assert(!std::is_same<Result, void>::value,
+                       "function must return a value");
          
          Promise p(std::forward<F>(f));
          enqueue(p);
@@ -102,8 +105,11 @@ namespace poolqueue {
       template<typename F>
       Promise dispatch(F&& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         typedef typename detail::CallableTraits<F>::ResultType Result;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
+         static_assert(!std::is_same<Result, void>::value,
+                       "function must return a value");
 
          if (index() >= 0)
             return Promise(std::forward<F>(f)).settle();
@@ -119,8 +125,11 @@ namespace poolqueue {
       template<typename F>
       std::function<Promise()> wrap(const F& f) {
          typedef typename detail::CallableTraits<F>::ArgumentType Argument;
+         typedef typename detail::CallableTraits<F>::ResultType Result;
          static_assert(std::is_same<Argument, void>::value,
                        "function must take no argument");
+         static_assert(!std::is_same<Result, void>::value,
+                       "function must return a value");
 
          return std::bind(&ThreadPoolT::dispatch<const F&>, this, f);
       }
