@@ -1,6 +1,10 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_CXXFLAGS= -Wall -Wextra -Werror
 
+if NEEDS_PTHREAD
+  AM_CXXFLAGS += $(PTHREAD_CFLAGS)
+endif
+
 SUBDIRS = . test examples
 
 lib_LTLIBRARIES = libpoolqueue.la

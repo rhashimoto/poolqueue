@@ -514,6 +514,7 @@ poolqueue::MPI::call(int rank, const Procedure& f) {
    std::shared_ptr<Procedure> clone(pf);
    pool().post([=]() {
          (*clone)();
+         return nullptr;
       });
 #endif
 }
@@ -546,7 +547,9 @@ poolqueue::MPI::call(int rank, const Function& f) {
    pool().post([=]() {
          (*clone)().then([=](const Promise::Value& value) {
                p.settle(value);
+               return nullptr;
             });
+         return nullptr;
       });
 
    return p;
@@ -572,7 +575,10 @@ poolqueue::MPI::post(const std::function<void()>& f) {
    auto& pimpl = Pimpl::singleton();
    pimpl.enqueue(f);
 #else
-   pool().post(f);
+   pool().post([=]() {
+         f();
+         return nullptr;
+      });
 #endif
 }
 
