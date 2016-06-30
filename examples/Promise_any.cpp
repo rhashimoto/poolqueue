@@ -28,8 +28,9 @@ int main() {
    // It doesn't matter what any remaining Promises do.
    promises[3].settle(std::string("bar"));
    pA.then([](const std::string& s) {
-         std::cout << "pA fulfils with " << s << '\n';
-      });
+      std::cout << "pA fulfils with " << s << '\n';
+      return nullptr;
+   });
 
    // A any Promise rejects when all input Promises reject (in any
    // order).
@@ -39,8 +40,9 @@ int main() {
    promises[0].settle(std::make_exception_ptr(std::runtime_error("3rd reject")));
    assert(pB.settled());
    pB.except([]() {
-         std::cout << "pB rejects\n";
-      });
+      std::cout << "pB rejects\n";
+      return nullptr;
+   });
    
    return 0;
 }

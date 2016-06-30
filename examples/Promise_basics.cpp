@@ -16,6 +16,7 @@ int main() {
       // onFulfil callback
       [](const std::string& s) {
          std::cout << "p1 fulfilled with " << s << '\n';
+         return nullptr;
       },
       // onReject callback
       [](const std::exception_ptr& e) {
@@ -26,6 +27,8 @@ int main() {
          catch (const std::exception& e) {
             std::cout << "p1 rejected with " << e.what() << '\n';
          }
+
+         return nullptr;
       });
    assert(!p1.settled());
 
@@ -49,9 +52,17 @@ int main() {
    p0.then(
       // onFulfil callback
       [](int i) { // <-- type mismatch
+         return nullptr;
       },
       // onReject callback
       [](const std::exception_ptr& e) {
+         return nullptr;
+      });
+
+   // DON'T DO THIS - Promise callbacks must return a value.
+   p0.then(
+      [](const std::string& s) {
+         // missing return value
       });
 #endif
 
@@ -193,6 +204,8 @@ int main() {
          catch (const std::exception& e) {
             std::cout << "p7 rejected with " << e.what() << '\n';
          }
+
+         return nullptr;
       });
    assert(p6.settled());
    assert(p7.settled());
@@ -203,10 +216,12 @@ int main() {
       // onFulfil callback
       []() {
          std::cout << "p8 fulfilled (argument omitted)\n";
+         return nullptr;
       },
       // onReject callback
       []() {
          std::cout << "p8 rejected (argument omitted)\n";
+         return nullptr;
       });
 
    // Here's what happens if a callback returns a Promise.
@@ -221,7 +236,8 @@ int main() {
    // DON'T DO THIS - A returned Promise does not propagate like other
    // types. A callback should never take a Promise argument.
    p10.then([](const Promise& value) {
-      });
+      return nullptr;
+   });
 #endif
 
    // Dependent Promises will be settled with the result
@@ -236,6 +252,7 @@ int main() {
    Promise p11 = p10.then(
       [](const std::string& s) {
          std::cout << "p11 fulfilled with " << s << '\n';
+         return nullptr;
       });
    
    return 0;

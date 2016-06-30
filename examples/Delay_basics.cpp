@@ -18,9 +18,11 @@ int main() {
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - bgnTime);
             assert(elapsed >= std::chrono::milliseconds(100));
             std::cout << "actual delay " << elapsed.count() << " milliseconds\n";
+            return nullptr;
          },
          []() {
             // Would get here if cancelled.
+            return nullptr;
          });
 #if 0
    // DON'T DO THIS - Don't attach long-running callbacks to Delay
@@ -29,10 +31,10 @@ int main() {
    // time to execute may cause other delays to be triggered later
    // than expected.
    Delay::after(std::chrono::milliseconds(100))
-      .then(
-         [=]() {
-            std::this_thread::sleep_for(std::chrono::hours(24));
-         });
+      .then([=]() {
+         std::this_thread::sleep_for(std::chrono::hours(24));
+         return nullptr;
+      });
        
 #endif
    
@@ -43,11 +45,13 @@ int main() {
    p.then(
       []() {
          // Would get here if not cancelled.
+         return nullptr;
       },
       [](const std::exception_ptr& e) {
          // This output will likely (almost certainly) be seen before
          // the previous delay fulfils.
          std::cout << "delay cancelled\n";
+         return nullptr;
       });
 
    Delay::cancel(p);

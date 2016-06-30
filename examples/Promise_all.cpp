@@ -28,18 +28,20 @@ int main() {
    // The results from input Promises may be retrieved as a
    // std::vector (if all input Promises return the same type)...
    pA.then([](const std::vector<std::string>& results) {
-         std::cout << "pA fulfils with vector "
-                   << results[0] << ", "
-                   << results[1] << '\n';;
-      });
+      std::cout << "pA fulfils with vector "
+                << results[0] << ", "
+                << results[1] << '\n';;
+      return nullptr;
+   });
 
    // ...or as a std::tuple (if the number of input Promises
    // and their return types are known at compile time).
    pA.then([](const std::tuple<std::string, std::string>& results) {
-         std::cout << "pA fulfils with tuple "
-                   << std::get<0>(results) << ", "
-                   << std::get<1>(results) << '\n';;
-      });
+      std::cout << "pA fulfils with tuple "
+                << std::get<0>(results) << ", "
+                << std::get<1>(results) << '\n';;
+      return nullptr;
+   });
    
    // An all Promise rejects when any input Promise rejects. The
    // result is propagated from the first input Promise to reject.
@@ -51,14 +53,16 @@ int main() {
    promises[2].settle(std::make_exception_ptr(std::runtime_error("2nd reject")));
    assert(!promises[4].settled());
    pB.except([](const std::exception_ptr& e) {
-         try {
-            if (e)
-               std::rethrow_exception(e);
-         }
-         catch (const std::exception& e) {
-            std::cout << "pB rejects with " << e.what() << '\n';
-         }
-      });
+      try {
+         if (e)
+            std::rethrow_exception(e);
+      }
+      catch (const std::exception& e) {
+         std::cout << "pB rejects with " << e.what() << '\n';
+      }
+
+      return nullptr;
+   });
    
    return 0;
 }

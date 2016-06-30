@@ -28,23 +28,24 @@ int main() {
 #if 0
    // DON'T DO THIS - Cannot call then() or except() after a
    // Promise is closed.
-   p0.then([]() { });
-   p0.except([]() { });
+   p0.then([]() { return nullptr; });
+   p0.except([]() { return nullptr; });
 #endif
 
    // A Promise may be closed implicitly by calling then() with an
    // onResolve callback that takes an rvalue reference argument:
    Promise p1;
    p1.then([](Uncopyable&& s) {
-         Uncopyable local(std::move(s));
-      });
+      Uncopyable local(std::move(s));
+      return nullptr;
+   });
    assert(p1.closed());
 
 #if 0
    // DON'T DO THIS - Cannot call then() or except() after a
    // Promise is closed.
-   p1.then([]() { });
-   p1.except([]() { });
+   p1.then([]() { return nullptr; });
+   p1.except([]() { return nullptr; });
 #endif
 
    // Rvalue references can be used to avoid copies, though copying is
