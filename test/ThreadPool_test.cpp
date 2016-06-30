@@ -21,23 +21,23 @@ BOOST_AUTO_TEST_CASE(basic) {
    int count = 0;
    std::mutex exclusive;
    tp.post([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      });
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   });
    tp.dispatch([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      });
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   });
    tp.wrap([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      })();
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   })();
 
    tp.synchronize().wait();
    BOOST_CHECK_EQUAL(count, 3);
@@ -51,23 +51,23 @@ BOOST_AUTO_TEST_CASE(stack) {
    std::atomic<int> count(0);
    std::mutex exclusive;
    tp.post([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      });
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   });
    tp.dispatch([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      });
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   });
    tp.wrap([&]() {
-         std::lock_guard<std::mutex> lock(exclusive);
-         BOOST_CHECK_GE(tp.index(), 0);
-         ++count;
-         return nullptr;
-      })();
+      std::lock_guard<std::mutex> lock(exclusive);
+      BOOST_CHECK_GE(tp.index(), 0);
+      ++count;
+      return nullptr;
+   })();
 
    // synchronize() won't work because stack is not FIFO.
    while (count < 3)
@@ -87,10 +87,10 @@ BOOST_AUTO_TEST_CASE(promise) {
             return 42;
          })
          .then([&complete](int i) {
-               BOOST_CHECK_EQUAL(i, 42);
-               complete = true;
-               return nullptr;
-            });
+            BOOST_CHECK_EQUAL(i, 42);
+            complete = true;
+            return nullptr;
+         });
 
       tp.synchronize().wait();
       BOOST_CHECK(complete);
@@ -104,17 +104,17 @@ BOOST_AUTO_TEST_CASE(promise) {
             throw std::runtime_error("foo");
          })
          .except([&complete](const std::exception_ptr& e) {
-               try {
-                  if (e)
-                     std::rethrow_exception(e);
-               }
-               catch(const std::exception& e) {
-                  BOOST_CHECK_EQUAL(e.what(), std::string("foo"));
-                  complete = true;
-               }
+            try {
+               if (e)
+                  std::rethrow_exception(e);
+            }
+            catch(const std::exception& e) {
+               BOOST_CHECK_EQUAL(e.what(), std::string("foo"));
+               complete = true;
+            }
 
-               return nullptr;
-            });
+            return nullptr;
+         });
 
       tp.synchronize().wait();
       BOOST_CHECK(complete);
@@ -127,12 +127,12 @@ BOOST_AUTO_TEST_CASE(post) {
    // Make sure that threads can post.
    std::promise<void> promise;
    tp.post([&tp, &promise]() {
-         tp.post([&promise]() {
-               promise.set_value();
-               return nullptr;
-            });
+      tp.post([&promise]() {
+         promise.set_value();
          return nullptr;
       });
+      return nullptr;
+   });
 
    promise.get_future().wait();
 }
@@ -143,20 +143,20 @@ BOOST_AUTO_TEST_CASE(dispatch) {
    // Verify synchronous dispatch.
    std::promise<void> promise;
    tp.post([&tp, &promise]() {
-         static int value;
-         value = 0xdeadbeef;
-         std::thread::id tid = std::this_thread::get_id();
+      static int value;
+      value = 0xdeadbeef;
+      std::thread::id tid = std::this_thread::get_id();
 
-         tp.dispatch([&]() {
-               BOOST_CHECK_EQUAL(value, 0xdeadbeef);
-               BOOST_CHECK_EQUAL(tid, std::this_thread::get_id());
-               promise.set_value();
-               return nullptr;
-            });
-
-         value = 0;
+      tp.dispatch([&]() {
+         BOOST_CHECK_EQUAL(value, 0xdeadbeef);
+         BOOST_CHECK_EQUAL(tid, std::this_thread::get_id());
+         promise.set_value();
          return nullptr;
       });
+
+      value = 0;
+      return nullptr;
+   });
 
    promise.get_future().wait();
 }
@@ -177,16 +177,16 @@ BOOST_AUTO_TEST_CASE(count) {
       std::set<std::thread::id> threadIds;
       for (int j = 0; j < 2*i; ++j) {
          tp.post([&]() {
-               std::unique_lock<std::mutex> lock(mutex);
-               const auto index = tp.index();
-               BOOST_CHECK_GE(index, 0);
-               BOOST_CHECK_LT(index, i);
-               threadIds.insert(std::this_thread::get_id());
-               lock.unlock();
+            std::unique_lock<std::mutex> lock(mutex);
+            const auto index = tp.index();
+            BOOST_CHECK_GE(index, 0);
+            BOOST_CHECK_LT(index, i);
+            threadIds.insert(std::this_thread::get_id());
+            lock.unlock();
 
-               std::this_thread::sleep_for(std::chrono::milliseconds(10));
-               return nullptr;
-            });
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            return nullptr;
+         });
       }
       
       tp.synchronize().wait();
@@ -206,14 +206,14 @@ BOOST_AUTO_TEST_CASE(stress) {
    std::vector<uint64_t> nConsumed(tp.getThreadCount(), 0);
    for (int i = 0; i < tp.getThreadCount(); ++i) {
       threads.emplace_back([=, &tp, &nProduced, &nConsumed]() {
-           while (std::chrono::steady_clock::now() - bgnTime < std::chrono::seconds(1)) {
-              ++nProduced[i];
-              tp.post([=, &tp, &nConsumed]() {
-                    ++nConsumed[tp.index()];
-                    return nullptr;
-                 });
-            }
-         });
+         while (std::chrono::steady_clock::now() - bgnTime < std::chrono::seconds(1)) {
+            ++nProduced[i];
+            tp.post([=, &tp, &nConsumed]() {
+               ++nConsumed[tp.index()];
+               return nullptr;
+            });
+         }
+      });
    }
 
    for (auto& t : threads)
@@ -245,8 +245,8 @@ BOOST_AUTO_TEST_CASE(performance) {
       auto bgnTime = std::chrono::steady_clock::now();
       for (size_t i = 0; i < n; ++i) {
          tp.post([]() {
-               return nullptr;
-            });
+            return nullptr;
+         });
       }
       tp.synchronize().wait();
       auto endTime = std::chrono::steady_clock::now();

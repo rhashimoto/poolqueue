@@ -37,9 +37,9 @@ BOOST_AUTO_TEST_CASE(procedure) {
    std::promise<void> done;
    MPI::synchronize()
       .then([&]() {
-            done.set_value();
-            return nullptr;
-         });
+         done.set_value();
+         return nullptr;
+      });
    done.get_future().wait();
 }
 
@@ -78,15 +78,15 @@ BOOST_AUTO_TEST_CASE(function) {
    std::promise<void> done;
    Promise::all(promises.begin(), promises.end())
       .then([&]() {
-            for (size_t i = 0; i < promises.size(); ++i) {
-               promises[i].then([=](int value) {
-                     BOOST_CHECK_EQUAL(value, i);
-                     return nullptr;
-                  });
-            }
-            done.set_value();
-            return nullptr;
-         });
+         for (size_t i = 0; i < promises.size(); ++i) {
+            promises[i].then([=](int value) {
+               BOOST_CHECK_EQUAL(value, i);
+               return nullptr;
+            });
+         }
+         done.set_value();
+         return nullptr;
+      });
 
    done.get_future().wait();
 }
@@ -116,10 +116,10 @@ BOOST_AUTO_TEST_CASE(return_class) {
    std::promise<void> done;
    MPI::call(0, ReturnClass())
       .then([&](const std::string& s) {
-            BOOST_CHECK_EQUAL(s, "how now brown cow");
-            done.set_value();
-            return nullptr;
-         });
+         BOOST_CHECK_EQUAL(s, "how now brown cow");
+         done.set_value();
+         return nullptr;
+      });
 
    done.get_future().wait();
 }

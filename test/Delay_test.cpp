@@ -22,16 +22,16 @@ BOOST_AUTO_TEST_CASE(basic) {
    for (int t : v) {
       Delay::after(std::chrono::milliseconds(t))
          .then([&, t]() {
-               const auto elapsed = std::chrono::steady_clock::now() - start;
-               std::lock_guard<std::mutex> lock(m);
-               BOOST_CHECK_GE(
-                  elapsed.count(),
-                  std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(t)).count());
-               results.push_back(t);
-               --count;
+            const auto elapsed = std::chrono::steady_clock::now() - start;
+            std::lock_guard<std::mutex> lock(m);
+            BOOST_CHECK_GE(
+               elapsed.count(),
+               std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::milliseconds(t)).count());
+            results.push_back(t);
+            --count;
 
-               return nullptr;
-            });
+            return nullptr;
+         });
    }
 
    while (count)
