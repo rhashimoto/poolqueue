@@ -101,6 +101,10 @@ return a value. This requirement helps to avoid a common programming
 mistake that is hard to debug. If a callback does not compute a
 meaningful result then a dummy value, e.g. `nullptr`, can be returned.
 
+Another difference from Javascript is that callback functions attached
+to a `Promise` (with `then()` or `except()`) are called synchronously
+when the `Promise` settles, instead of being queued for later.
+
 A `Promise` can be closed to `then()` and `except()` methods, either
 explicitly using `close()` or implicitly by passing an `onFulfil`
 callback to `then()` that takes an rvalue reference argument. Closed
