@@ -39,8 +39,8 @@ Promises/A+ specification](https://promisesaplus.com/) describes a promise:
 A PoolQueue `Promise` can be in one of three states: *pending* (aka
 not settled), *fulfilled*, or *rejected*. Pending means that the
 `Promise` has not yet been fulfilled or rejected. Fulfilled means that
-the `Promise` has a value (possibly `void`). Rejected means that the
-`Promise` has an exception.
+the `Promise` has a value. Rejected means that the `Promise` has an
+exception.
 
 A `Promise` can have function callbacks to invoke when it is settled
 (either fulfilled or rejected). Whichever callback is invoked, the
