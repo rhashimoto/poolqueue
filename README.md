@@ -4,8 +4,8 @@ feature is asynchronous promises, inspired by the [Javascript
 Promises/A+ specification](https://promisesaplus.com/). The library
 also contains a thread pool and a timer, both built using asynchronous
 promises. The library implementation makes use of C++11 features but
-has no external dependencies (the test suite and some examples require
-Boost).
+has no external dependencies (MPI support, the test suite, and some
+examples require Boost).
 
 The key distinction between Promises/A+ and `std::promise` in C++11 is
 that Promises/A+ provides *non-blocking* synchronization (via chaining
