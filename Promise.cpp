@@ -29,6 +29,8 @@ namespace {
    struct Unset {
    };
 
+   std::mutex gHandlerMutex;
+   
    // This is the handler called when a Promise is destroyed and it
    // contains an undelivered exception. There is nothing technically
    // wrong with discarding an undelivered exception but it is much
@@ -87,10 +89,10 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
 
    ~Pimpl() {
       // Pass undelivered exceptions to the handler.
-      if (undeliveredException_.load(std::memory_order_relaxed) && undeliveredExceptionHandler) {
-         std::atomic_thread_fence(std::memory_order_acquire);
-         std::lock_guard<decltype(mutex_)> lock(mutex_);
-         undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
+      if (undeliveredException_.load(std::memory_order_relaxed)) {
+         std::lock_guard<decltype(mutex_)> lock(gHandlerMutex);
+         if (undeliveredExceptionHandler)
+            undeliveredExceptionHandler(value_.cast<const std::exception_ptr&>());
       }
    }
 
@@ -343,6 +345,7 @@ poolqueue::Promise::closed() const {
 
 Promise::ExceptionHandler
 poolqueue::Promise::setUndeliveredExceptionHandler(const ExceptionHandler& handler) {
+   std::lock_guard<std::mutex> lock(gHandlerMutex);
    ExceptionHandler previous = std::move(undeliveredExceptionHandler);
    undeliveredExceptionHandler = handler;
    return previous;
@@ -350,6 +353,7 @@ poolqueue::Promise::setUndeliveredExceptionHandler(const ExceptionHandler& handl
 
 Promise::BadCastHandler
 poolqueue::Promise::setBadCastExceptionHandler(const BadCastHandler& handler) {
+   std::lock_guard<std::mutex> lock(gHandlerMutex);
    BadCastHandler previous = std::move(badCastHandler);
    badCastHandler = handler;
    return previous;
