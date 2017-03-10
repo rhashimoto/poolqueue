@@ -137,7 +137,7 @@ struct poolqueue::Promise::Pimpl : std::enable_shared_from_this<Pimpl> {
             next->onFulfil_ ? next->onFulfil_->argumentType() : typeid(void);
          if (oType != iType &&
              oType != typeid(detail::Any) && oType != typeid(Promise) &&
-             iType != typeid(void)) {
+             iType != typeid(detail::Any) && iType != typeid(void)) {
             throw std::logic_error(std::string("type mismatch: ") + oType.name() + " -> "  + iType.name());
          }
          

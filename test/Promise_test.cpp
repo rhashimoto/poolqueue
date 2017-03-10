@@ -929,6 +929,22 @@ BOOST_AUTO_TEST_CASE(all) {
       p3.settle(3);
       BOOST_CHECK_EQUAL(complete, 4);
    }
+
+   {
+     Promise p1;
+     auto p11 = p1.then([] { return 1; });
+     auto p12 = p1.then([] { return 2; });
+     auto q = Promise::all({p11, p12});
+     std::vector<int> results;
+     q.then([&](std::vector<int> &&v) {
+        results = std::move(v);
+        return nullptr;
+     });
+     p1.settle();
+     BOOST_CHECK_EQUAL(results.size(), 2);
+     BOOST_CHECK_EQUAL(results[0], 1);
+     BOOST_CHECK_EQUAL(results[1], 2);
+   }
 }
 
 BOOST_AUTO_TEST_CASE(any) {
