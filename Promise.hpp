@@ -167,7 +167,7 @@ namespace poolqueue {
          static_assert(!std::is_same<typename std::decay<FulfilResult>::type, void>::value,
                        "onFulfil callback must return a value.");
          static_assert(!std::is_same<typename std::decay<RejectResult>::type, void>::value,
-                       "onFulfil callback must return a value.");
+                       "onReject callback must return a value.");
          if (closed())
             throw std::logic_error("Promise is closed");
          

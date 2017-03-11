@@ -33,6 +33,9 @@ namespace poolqueue {
    class Delay {
    public:
       struct cancelled : public std::exception {
+         const char* what() const noexcept override {
+            return "Delayed promise has been cancelled";
+         }
       };
 
       // Instantiate a delay.
